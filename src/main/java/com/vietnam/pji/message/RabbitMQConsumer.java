@@ -198,8 +198,8 @@ public class RabbitMQConsumer {
                 result.getItems().size(),
                 result.getCitations() != null ? result.getCitations().size() : 0);
 
-        streamController.closeRun(run.getId(), "SUCCESS");
-        notifyRunFinished(run, true, null);
+        streamController.closeRun(run.getId(), run.getStatus().name());
+        notifyRunFinished(run, run.getStatus() == RunStatus.SUCCESS, null);
     }
 
     /**
