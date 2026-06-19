@@ -19,6 +19,8 @@ public class CultureResultRequestDTO {
 
     private String gramType;
 
+    private String sampleType;
+
     private Boolean antibioticed;
 
     private Integer daysOffAntibio;
