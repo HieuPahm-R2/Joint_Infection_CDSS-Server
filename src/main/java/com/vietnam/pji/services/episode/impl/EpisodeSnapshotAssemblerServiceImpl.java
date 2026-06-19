@@ -136,6 +136,8 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
             Map<String, Object> vitals = new LinkedHashMap<>();
             vitals.put("blood_pressure", cr.getBloodPressure());
             vitals.put("bmi", cr.getBmi());
+            vitals.put("height_cm", cr.getHeightCm());
+            vitals.put("weight_kg", cr.getWeightKg());
             clinical.put("vitals", vitals);
 
             Map<String, Object> symptoms = new LinkedHashMap<>();
@@ -241,6 +243,9 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
                 item.put("organism_name", c.getName());
                 item.put("result_status", c.getResult());
                 item.put("gram_type", c.getGramType());
+                item.put("sample_type", c.getSampleType());
+                item.put("antibiotics_before", c.getAntibioticed());
+                item.put("days_off_antibiotics", c.getDaysOffAntibio());
                 item.put("incubation_days", c.getIncubationDays());
                 item.put("notes", c.getNotes());
 
