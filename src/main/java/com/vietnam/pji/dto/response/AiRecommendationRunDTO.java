@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +35,9 @@ public class AiRecommendationRunDTO implements Serializable {
     private String errorMessage;
     private String requestId;
     private Map<String, Object> dataCompletenessJson;
+    private Map<String, Object> assessmentJson;
+    private Map<String, Object> explanationJson;
+    private List<Map<String, Object>> warningsJson;
     private boolean pendingTasksSaved;
     private Date createdAt;
     private Date updatedAt;
