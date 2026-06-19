@@ -129,20 +129,9 @@ public class RabbitMQConsumer {
             run.setModelVersion(result.getModel().getVersion());
         }
 
-        // try {
-        // if (result.getAssessmentJson() != null) {
-        // run.setAssessmentJson(objectMapper.writeValueAsString(result.getAssessmentJson()));
-        // }
-        // if (result.getExplanationJson() != null) {
-        // run.setExplanationJson(objectMapper.writeValueAsString(result.getExplanationJson()));
-        // }
-        // if (result.getWarningsJson() != null) {
-        // run.setWarningsJson(objectMapper.writeValueAsString(result.getWarningsJson()));
-        // }
-        // } catch (JsonProcessingException e) {
-        // log.warn("Failed to serialize AI result JSON fields for runId={}",
-        // run.getId(), e);
-        // }
+        run.setAssessmentJson(result.getAssessmentJson());
+        run.setExplanationJson(result.getExplanationJson());
+        run.setWarningsJson(result.getWarningsJson());
 
         // Store data completeness on the run for frontend display
         if (result.getDataCompleteness() != null) {
