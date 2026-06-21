@@ -43,6 +43,9 @@ public class CultureResult extends AbstractEntity<Long> {
     @Column(name = "gram_type", length = 20)
     private String gramType;
 
+    @Column(name = "sample_type", length = 100)
+    private String sampleType;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
