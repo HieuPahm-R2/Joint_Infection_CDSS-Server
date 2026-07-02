@@ -52,6 +52,11 @@ public class RabbitMQConsumer {
             log.debug("Dropping progress message without runId");
             return;
         }
+        if (redisService.isRunCancelled(progress.getRunId())) {
+            log.debug("Dropping progress for cancelled runId={}", progress.getRunId());
+            streamController.closeRun(progress.getRunId(), "CANCELLED");
+            return;
+        }
         log.debug("Progress runId={} stage={} message={}",
                 progress.getRunId(), progress.getStage(), progress.getMessage());
         streamController.pushProgress(
@@ -70,13 +75,20 @@ public class RabbitMQConsumer {
         // Find the run — by runId first, fallback to requestId
         AiRecommendationRun run = null;
         if (runId != null) {
-            run = runRepository.findById(runId).orElse(null);
+            run = runRepository.findByIdForUpdate(runId).orElse(null);
         }
         if (run == null && requestId != null) {
-            run = runRepository.findByRequestId(requestId).orElse(null);
+            AiRecommendationRun byRequestId = runRepository.findByRequestId(requestId).orElse(null);
+            if (byRequestId != null) {
+                run = runRepository.findByIdForUpdate(byRequestId.getId()).orElse(byRequestId);
+            }
         }
         if (run == null) {
             log.error("Cannot find run for result: runId={}, requestId={}", runId, requestId);
+            return;
+        }
+
+        if (dropIfCancellationRequested(run, "result received")) {
             return;
         }
 
@@ -87,16 +99,11 @@ public class RabbitMQConsumer {
             return;
         }
 
-        // Cancelled before the worker could finish — drop the result entirely.
-        // Do NOT overwrite the status or create any notification.
-        if (run.getStatus() == RunStatus.CANCELLED) {
-            log.info("Run {} was CANCELLED — dropping late worker result", run.getId());
-            streamController.closeRun(run.getId(), "CANCELLED");
-            return;
-        }
-
         // Handle FAILED status
         if ("FAILED".equals(result.getStatus())) {
+            if (dropIfCancellationRequested(run, "before saving failed result")) {
+                return;
+            }
             run.setStatus(RunStatus.FAILED);
             run.setErrorMessage(result.getErrorMessage() != null
                     ? result.getErrorMessage().substring(0, Math.min(result.getErrorMessage().length(), 2000))
@@ -111,12 +118,19 @@ public class RabbitMQConsumer {
 
         // Validate response has items
         if (result.getItems() == null || result.getItems().isEmpty()) {
+            if (dropIfCancellationRequested(run, "before saving empty-result failure")) {
+                return;
+            }
             run.setStatus(RunStatus.FAILED);
             run.setErrorMessage("AI response missing required items");
             runRepository.save(run);
             log.warn("AI result has no items for runId={}", run.getId());
             streamController.closeRun(run.getId(), "FAILED");
             notifyRunFinished(run, false, "AI response missing required items");
+            return;
+        }
+
+        if (dropIfCancellationRequested(run, "before saving AI result")) {
             return;
         }
 
@@ -129,9 +143,8 @@ public class RabbitMQConsumer {
             run.setModelVersion(result.getModel().getVersion());
         }
 
-        run.setAssessmentJson(result.getAssessmentJson());
-        run.setExplanationJson(result.getExplanationJson());
-        run.setWarningsJson(result.getWarningsJson());
+        preserveRuleBasedDiagnosisRunFields(run, result.getAssessmentJson(),
+                result.getExplanationJson(), result.getWarningsJson());
 
         // Store data completeness on the run for frontend display
         if (result.getDataCompleteness() != null) {
@@ -140,16 +153,34 @@ public class RabbitMQConsumer {
 
         runRepository.save(run);
 
+        if (dropIfCancellationRequested(run, "before saving dependent AI data")) {
+            return;
+        }
+
         // Auto-create pending lab tasks from completeness missing items
         createPendingTasksFromCompleteness(run, result.getDataCompleteness());
+
+        if (dropIfCancellationRequested(run, "before saving recommendation items")) {
+            return;
+        }
 
         // Save items
         Map<String, AiRecommendationItem> itemKeyMap = new HashMap<>();
 
         for (RabbitMQRecommendationResultMessage.ItemDTO itemDTO : result.getItems()) {
+            if (dropIfCancellationRequested(run, "during recommendation item save")) {
+                return;
+            }
+            ItemCategory category = parseCategory(itemDTO.getCategory());
+            if (category == ItemCategory.DIAGNOSTIC_TEST) {
+                log.debug("Skipping AI DIAGNOSTIC_TEST item for runId={} because backend rule engine owns diagnosis",
+                        run.getId());
+                continue;
+            }
+
             AiRecommendationItem item = AiRecommendationItem.builder()
                     .run(run)
-                    .category(parseCategory(itemDTO.getCategory()))
+                    .category(category)
                     .title(itemDTO.getTitle())
                     .priorityOrder(itemDTO.getPriorityOrder())
                     .isPrimary(itemDTO.getIsPrimary())
@@ -169,9 +200,22 @@ public class RabbitMQConsumer {
             }
         }
 
+        if (dropIfCancellationRequested(run, "before saving citations")) {
+            return;
+        }
+
         // Save citations
         if (result.getCitations() != null) {
             for (RabbitMQRecommendationResultMessage.CitationDTO citDTO : result.getCitations()) {
+                if (dropIfCancellationRequested(run, "during citation save")) {
+                    return;
+                }
+                if (citDTO.getClientItemKey() != null && !itemKeyMap.containsKey(citDTO.getClientItemKey())) {
+                    log.debug("Skipping citation for unmapped AI item key={} on runId={}",
+                            citDTO.getClientItemKey(), run.getId());
+                    continue;
+                }
+
                 AiRagCitation citation = AiRagCitation.builder()
                         .run(run)
                         .sourceType(parseSourceType(citDTO.getSourceType()))
@@ -190,6 +234,10 @@ public class RabbitMQConsumer {
             }
         }
 
+        if (dropIfCancellationRequested(run, "before finalizing AI result")) {
+            return;
+        }
+
         // Evict run detail cache so next poll gets fresh data
         redisService.evictRunDetail(run.getId());
 
@@ -200,6 +248,41 @@ public class RabbitMQConsumer {
 
         streamController.closeRun(run.getId(), run.getStatus().name());
         notifyRunFinished(run, run.getStatus() != RunStatus.FAILED, null);
+    }
+
+    private boolean dropIfCancellationRequested(AiRecommendationRun run, String phase) {
+        if (!isCancellationRequested(run)) {
+            return false;
+        }
+        if (run.getStatus() != RunStatus.CANCELLED) {
+            run.setStatus(RunStatus.CANCELLED);
+            run.setErrorMessage("Cancelled by user");
+            runRepository.save(run);
+        }
+        redisService.evictRunDetail(run.getId());
+        log.info("Run {} cancellation observed at '{}' — dropping worker result", run.getId(), phase);
+        streamController.closeRun(run.getId(), "CANCELLED");
+        return true;
+    }
+
+    private boolean isCancellationRequested(AiRecommendationRun run) {
+        return run.getStatus() == RunStatus.CANCELLED || redisService.isRunCancelled(run.getId());
+    }
+
+    private void preserveRuleBasedDiagnosisRunFields(
+            AiRecommendationRun run,
+            Map<String, Object> aiAssessmentJson,
+            Map<String, Object> aiExplanationJson,
+            List<Map<String, Object>> aiWarningsJson) {
+        if (run.getAssessmentJson() == null || run.getAssessmentJson().isEmpty()) {
+            run.setAssessmentJson(aiAssessmentJson);
+        }
+        if (run.getExplanationJson() == null || run.getExplanationJson().isEmpty()) {
+            run.setExplanationJson(aiExplanationJson);
+        }
+        if (run.getWarningsJson() == null || run.getWarningsJson().isEmpty()) {
+            run.setWarningsJson(aiWarningsJson);
+        }
     }
 
     /**

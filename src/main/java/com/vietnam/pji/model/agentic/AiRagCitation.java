@@ -5,8 +5,6 @@ import com.vietnam.pji.constant.SourceType;
 import com.vietnam.pji.model.AbstractEntity;
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.io.Serializable;
 import java.math.BigDecimal;
 
 @Getter
@@ -16,16 +14,16 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Entity
 @Table(name = "ai_rag_citations")
-public class AiRagCitation extends AbstractEntity<Long> implements Serializable {
+public class AiRagCitation extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "run_id", nullable = false)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private AiRecommendationRun run;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "item_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private AiRecommendationItem item;
 
     @Enumerated(EnumType.STRING)

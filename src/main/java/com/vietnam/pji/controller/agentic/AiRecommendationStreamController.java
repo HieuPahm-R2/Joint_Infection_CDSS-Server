@@ -1,6 +1,8 @@
 package com.vietnam.pji.controller.agentic;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,10 @@ public class AiRecommendationStreamController {
 
     @GetMapping(value = "/ai-recommendations/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream AI recommendation progress (thought logs) via SSE")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Opened text/event-stream; emits named progress events and a terminal 'done' event"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
+    })
     public SseEmitter streamRun(@PathVariable Long runId, HttpServletResponse response) {
         // Stop reverse proxies (nginx / Cloudflare) buffering the event stream —
         // without this the thought-log frames arrive in one batch at the end
