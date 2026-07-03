@@ -20,6 +20,7 @@ import com.vietnam.pji.message.RabbitMQPublisher;
 import com.vietnam.pji.dto.request.PriorAcceptedDiagnosisDTO;
 import com.vietnam.pji.services.agent.AiRecommendationService;
 import com.vietnam.pji.services.agent.AiServiceClient;
+import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
 import com.vietnam.pji.services.feat.PriorAcceptedDiagnosisAssemblerService;
@@ -33,6 +34,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.util.*;
 
 @Slf4j
@@ -40,7 +42,6 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AiRecommendationServiceImpl implements AiRecommendationService {
 
-    private static final int MAX_RUNS_PER_EPISODE = 5;
     private static final long RUN_DETAIL_CACHE_TTL = 1800; // 30 minutes
 
     private final EpisodeRepository episodeRepository;
@@ -52,6 +53,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final PriorAcceptedDiagnosisAssemblerService priorAcceptedDiagnosisAssemblerService;
     private final AiServiceClient aiServiceClient;
     private final RabbitMQPublisher rabbitMQPublisher;
+    private final PjiDiagnosticRuleEngine diagnosticRuleEngine;
     private final ObjectMapper objectMapper;
     private final RedisService redisService;
     private final AiRecommendationRunMapper runMapper;
@@ -61,19 +63,14 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
-        // Enforce max runs per episode
-        long runCount = runRepository.countByEpisodeId(episodeId);
-        if (runCount >= MAX_RUNS_PER_EPISODE) {
-            throw new BusinessException("Đã đạt giới hạn " + MAX_RUNS_PER_EPISODE
-                    + " lần gọi AI cho bệnh án này. Không thể tạo thêm.");
-        }
-
         // TX1: Build snapshot + create run
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
         List<PriorAcceptedDiagnosisDTO> priorDiagnoses = priorAcceptedDiagnosisAssemblerService.assemble(episodeId);
 
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
         AiRecommendationRun run = createRun(episode, snapshot, triggerType);
+        saveRuleBasedDiagnostic(run.getId(), diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson()));
+        run = runRepository.findById(run.getId()).orElse(run);
 
         String requestId = run.getRequestId();
 
@@ -106,18 +103,14 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
-        // Enforce max runs per episode
-        long runCount = runRepository.countByEpisodeId(episodeId);
-        if (runCount >= MAX_RUNS_PER_EPISODE) {
-            throw new BusinessException("Đã đạt giới hạn " + MAX_RUNS_PER_EPISODE
-                    + " lần gọi AI cho bệnh án này. Không thể tạo thêm.");
-        }
-
         // Build snapshot + create run (same as sync)
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
         List<PriorAcceptedDiagnosisDTO> priorDiagnoses = priorAcceptedDiagnosisAssemblerService.assemble(episodeId);
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
         AiRecommendationRun run = createRun(episode, snapshot, triggerType);
+        AiRecommendationItem diagnosticItem = saveRuleBasedDiagnostic(
+                run.getId(), diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson()));
+        run = runRepository.findById(run.getId()).orElse(run);
 
         // Publish to RabbitMQ — Python worker will process asynchronously
         RabbitMQRecommendationMessage message = RabbitMQRecommendationMessage.builder()
@@ -137,11 +130,16 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 run.getRequestId(), run.getId(), episodeId);
 
         // Return immediately with PROCESSING status — client polls GET /runs/{runId}
-        return AiRecommendationRunDetailDTO.builder()
-                .run(runMapper.toDto(run))
-                .items(Collections.emptyList())
-                .citations(Collections.emptyList())
-                .build();
+        return toRunDetailDto(run, List.of(diagnosticItem), Collections.emptyList());
+    }
+
+    @Override
+    public PjiDiagnosticRuleEngine.DiagnosticResult evaluateRuleBasedDiagnostic(Long episodeId) {
+        if (!episodeRepository.existsById(episodeId)) {
+            throw new ResourceNotFoundException("Episode not found: " + episodeId);
+        }
+        SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
+        return diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
     }
 
     @Transactional
@@ -183,6 +181,48 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     }
 
     @Transactional
+    protected AiRecommendationItem saveRuleBasedDiagnostic(
+            Long runId,
+            PjiDiagnosticRuleEngine.DiagnosticResult diagnostic) {
+        AiRecommendationRun run = runRepository.findById(runId)
+                .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
+
+        run.setAssessmentJson(diagnostic.assessmentJson());
+        run.setExplanationJson(diagnostic.explanationJson());
+        run.setWarningsJson(diagnostic.warningsJson());
+        runRepository.save(run);
+
+        AiRecommendationItem item = AiRecommendationItem.builder()
+                .run(run)
+                .category(ItemCategory.DIAGNOSTIC_TEST)
+                .title(diagnostic.title())
+                .priorityOrder(1)
+                .isPrimary(true)
+                .build();
+
+        try {
+            item.setItemJson(objectMapper.writeValueAsString(diagnostic.itemJson()));
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize rule-based diagnostic item for runId={}", runId);
+        }
+
+        AiRecommendationItem saved = itemRepository.save(item);
+
+        citationRepository.save(AiRagCitation.builder()
+                .run(run)
+                .item(saved)
+                .sourceType(SourceType.CONSENSUS_STATEMENT)
+                .sourceTitle("International Consensus Meeting 2025 and ICM PJI diagnostic criteria")
+                .sourceUri("ICM2025.pdf")
+                .snippet("Backend rule engine applies decisive major criteria and ICM-style minor scoring; missing criteria are not inferred.")
+                .relevanceScore(BigDecimal.valueOf(0.9900))
+                .citedFor("Rule-based DIAGNOSTIC_TEST generation")
+                .build());
+
+        return saved;
+    }
+
+    @Transactional
     protected void handleAiError(Long runId, Exception e) {
         AiRecommendationRun run = runRepository.findById(runId).orElse(null);
         if (run != null) {
@@ -215,6 +255,8 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             run.setModelVersion(response.getModel().getVersion());
         }
         run.setLatencyMs(response.getLatencyMs());
+        preserveRuleBasedDiagnosisRunFields(run, response.getAssessmentJson(),
+                response.getExplanationJson(), response.getWarningsJson());
 
         // try {
         // if (response.getAssessmentJson() != null) {
@@ -237,9 +279,14 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         List<AiRecommendationItem> savedItems = new ArrayList<>();
 
         for (AiRecommendationGenerateResponseDTO.ItemDTO itemDTO : response.getItems()) {
+            ItemCategory category = parseCategory(itemDTO.getCategory());
+            if (category == ItemCategory.DIAGNOSTIC_TEST) {
+                log.debug("Skipping AI DIAGNOSTIC_TEST item for runId={} because backend rule engine owns diagnosis", runId);
+                continue;
+            }
             AiRecommendationItem item = AiRecommendationItem.builder()
                     .run(run)
-                    .category(parseCategory(itemDTO.getCategory()))
+                    .category(category)
                     .title(itemDTO.getTitle())
                     .priorityOrder(itemDTO.getPriorityOrder())
                     .isPrimary(itemDTO.getIsPrimary())
@@ -265,6 +312,11 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         List<AiRagCitation> savedCitations = new ArrayList<>();
         if (response.getCitations() != null) {
             for (AiRecommendationGenerateResponseDTO.CitationDTO citDTO : response.getCitations()) {
+                if (citDTO.getClientItemKey() != null && !itemKeyMap.containsKey(citDTO.getClientItemKey())) {
+                    log.debug("Skipping citation for unmapped AI item key={} on runId={}",
+                            citDTO.getClientItemKey(), runId);
+                    continue;
+                }
                 AiRagCitation citation = AiRagCitation.builder()
                         .run(run)
                         .sourceType(parseSourceType(citDTO.getSourceType()))
@@ -284,11 +336,26 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             }
         }
 
-        return AiRecommendationRunDetailDTO.builder()
-                .run(runMapper.toDto(run))
-                .items(savedItems)
-                .citations(savedCitations)
-                .build();
+        List<AiRecommendationItem> allItems = itemRepository.findByRunIdOrderByPriorityOrderAsc(runId);
+        List<AiRagCitation> allCitations = citationRepository.findByRunId(runId);
+
+        return toRunDetailDto(run, allItems, allCitations);
+    }
+
+    private void preserveRuleBasedDiagnosisRunFields(
+            AiRecommendationRun run,
+            Map<String, Object> aiAssessmentJson,
+            Map<String, Object> aiExplanationJson,
+            List<Map<String, Object>> aiWarningsJson) {
+        if (run.getAssessmentJson() == null || run.getAssessmentJson().isEmpty()) {
+            run.setAssessmentJson(aiAssessmentJson);
+        }
+        if (run.getExplanationJson() == null || run.getExplanationJson().isEmpty()) {
+            run.setExplanationJson(aiExplanationJson);
+        }
+        if (run.getWarningsJson() == null || run.getWarningsJson().isEmpty()) {
+            run.setWarningsJson(aiWarningsJson);
+        }
     }
 
     @Override
@@ -311,11 +378,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         List<AiRecommendationItem> items = itemRepository.findByRunIdOrderByPriorityOrderAsc(runId);
         List<AiRagCitation> citations = citationRepository.findByRunId(runId);
 
-        AiRecommendationRunDetailDTO detail = AiRecommendationRunDetailDTO.builder()
-                .run(runMapper.toDto(run))
-                .items(items)
-                .citations(citations)
-                .build();
+        AiRecommendationRunDetailDTO detail = toRunDetailDto(run, items, citations);
 
         // Only cache terminal statuses (immutable data)
         if (isTerminalStatus(run.getStatus())) {
@@ -333,6 +396,56 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private boolean isTerminalStatus(RunStatus status) {
         return status == RunStatus.SUCCESS || status == RunStatus.FAILED
                 || status == RunStatus.PARTIAL || status == RunStatus.TIMEOUT;
+    }
+
+    private AiRecommendationRunDetailDTO toRunDetailDto(
+            AiRecommendationRun run,
+            List<AiRecommendationItem> items,
+            List<AiRagCitation> citations) {
+        return AiRecommendationRunDetailDTO.builder()
+                .run(runMapper.toDto(run))
+                .items(items == null ? Collections.emptyList() : items.stream().map(this::toItemDto).toList())
+                .citations(citations == null ? Collections.emptyList() : citations.stream().map(this::toCitationDto).toList())
+                .build();
+    }
+
+    private AiRecommendationRunDetailDTO.ItemDTO toItemDto(AiRecommendationItem item) {
+        return AiRecommendationRunDetailDTO.ItemDTO.builder()
+                .id(item.getId())
+                .category(item.getCategory() != null ? item.getCategory().name() : null)
+                .title(item.getTitle())
+                .priorityOrder(item.getPriorityOrder())
+                .isPrimary(item.getIsPrimary())
+                .itemJson(readItemJson(item.getItemJson()))
+                .createdBy(item.getCreatedBy())
+                .updatedBy(item.getUpdatedBy())
+                .build();
+    }
+
+    private AiRecommendationRunDetailDTO.CitationDTO toCitationDto(AiRagCitation citation) {
+        return AiRecommendationRunDetailDTO.CitationDTO.builder()
+                .id(citation.getId())
+                .sourceType(citation.getSourceType() != null ? citation.getSourceType().name() : null)
+                .sourceTitle(citation.getSourceTitle())
+                .sourceUri(citation.getSourceUri())
+                .snippet(citation.getSnippet())
+                .relevanceScore(citation.getRelevanceScore())
+                .citedFor(citation.getCitedFor())
+                .createdBy(citation.getCreatedBy())
+                .updatedBy(citation.getUpdatedBy())
+                .build();
+    }
+
+    private Object readItemJson(String itemJson) {
+        if (itemJson == null || itemJson.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(itemJson, Object.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse itemJson for API response; returning raw JSON string");
+            return itemJson;
+        }
     }
 
     @Override
@@ -383,31 +496,52 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     @Override
     @Transactional
     public void cancelRun(Long runId) {
-        AiRecommendationRun run = runRepository.findById(runId)
+        AiRecommendationRun current = runRepository.findById(runId)
                 .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
 
         Long currentUserId = SecurityUtils.getCurrentUserId();
         if (currentUserId == null) {
             throw new org.springframework.security.access.AccessDeniedException("Unauthenticated");
         }
+        if (current.getCreatedByUserId() != null && !current.getCreatedByUserId().equals(currentUserId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You can only cancel runs you started");
+        }
+        if (current.getStatus() != RunStatus.QUEUED
+                && current.getStatus() != RunStatus.PROCESSING
+                && current.getStatus() != RunStatus.CANCELLED) {
+            throw new BusinessException("Run is not cancellable (current status: " + current.getStatus() + ")");
+        }
+
+        // Set the fast-path Redis signal before taking the DB lock so an
+        // in-flight Python worker or result consumer can observe cancellation
+        // even while this transaction waits on the run row.
+        redisService.markRunCancelled(runId, CANCEL_KEY_TTL_SECONDS);
+
+        AiRecommendationRun run = runRepository.findByIdForUpdate(runId)
+                .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
+
         if (run.getCreatedByUserId() != null && !run.getCreatedByUserId().equals(currentUserId)) {
+            redisService.clearRunCancelled(runId);
             throw new org.springframework.security.access.AccessDeniedException(
                     "You can only cancel runs you started");
         }
 
         RunStatus status = run.getStatus();
+        if (status == RunStatus.CANCELLED) {
+            redisService.evictRunDetail(runId);
+            log.info("RunId={} was already cancelled; treating cancel as idempotent", runId);
+            return;
+        }
         if (status != RunStatus.QUEUED && status != RunStatus.PROCESSING) {
+            redisService.clearRunCancelled(runId);
             throw new BusinessException("Run is not cancellable (current status: " + status + ")");
         }
 
         run.setStatus(RunStatus.CANCELLED);
         run.setErrorMessage("Cancelled by user");
         runRepository.save(run);
-
-        // Signal any worker currently processing this run. Even if no worker is
-        // listening, the row state is the source of truth — the late-result
-        // path in RabbitMQConsumer will drop the result.
-        redisService.markRunCancelled(runId, CANCEL_KEY_TTL_SECONDS);
+        redisService.evictRunDetail(runId);
 
         log.info("Cancelled runId={} by userId={}", runId, currentUserId);
     }

@@ -3,6 +3,7 @@ package com.vietnam.pji.services.agent;
 import com.vietnam.pji.constant.TriggerType;
 import com.vietnam.pji.dto.response.AiRecommendationRunDetailDTO;
 import com.vietnam.pji.dto.response.PaginationResultDTO;
+import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
 import org.springframework.data.domain.Pageable;
 
 public interface AiRecommendationService {
@@ -12,6 +13,9 @@ public interface AiRecommendationService {
 
     /** Async: publishes to RabbitMQ, returns immediately with PROCESSING run. */
     AiRecommendationRunDetailDTO generateRecommendationAsync(Long episodeId, TriggerType triggerType);
+
+    /** Rule-based diagnostic only; does not call RAG/AI and does not create an AI run. */
+    PjiDiagnosticRuleEngine.DiagnosticResult evaluateRuleBasedDiagnostic(Long episodeId);
 
     AiRecommendationRunDetailDTO getRunDetail(Long runId);
 

@@ -6,8 +6,6 @@ import com.vietnam.pji.model.AbstractEntity;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter

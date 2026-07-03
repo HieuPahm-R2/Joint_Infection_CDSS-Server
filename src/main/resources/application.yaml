@@ -117,7 +117,7 @@ ai:
   service:
     base-url: ${AI_SERVICE_URL}
     connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:3000}
-    read-timeout: ${AI_SERVICE_READ_TIMEOUT:180000}
+    read-timeout: ${AI_SERVICE_READ_TIMEOUT:600000}
     api-key: ${AI_SERVICE_API_KEY:dev-shared-key-pji-2026}
 
 extract-images:
@@ -171,7 +171,7 @@ management:
     mail:
       enabled: ${HEALTH_MAIL_ENABLED:true}
   tracing:
-    enabled: ${OTEL_TRACING_ENABLED:true}
+    enabled: ${OTEL_TRACING_ENABLED:false}
     sampling:
       probability: ${OTEL_TRACING_SAMPLING:1.0}
   otlp:

@@ -20,6 +20,8 @@ import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.SecurityUtils;
 import com.vietnam.pji.utils.mapper.RoleMapper;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -71,6 +73,10 @@ public class AuthController {
             + "(device-id cookie matches a non-expired trusted-devices row) tokens are issued immediately. "
             + "Otherwise the response carries requiresDeviceVerification=true plus a challengeId, no tokens "
             + "are issued, and an OTP is emailed — the client must then POST /auth/verify-device.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Authenticated — tokens issued (trusted device) or a device-verification challenge is returned (new device)"),
+            @ApiResponse(responseCode = "404", description = "User not found after authentication")
+    })
     @PostMapping("/auth/login")
     public ResponseEntity<ResponseData<ResLoginDTO>> login(
             @Valid @RequestBody LoginDTO loginData,
@@ -139,6 +145,10 @@ public class AuthController {
     @Operation(summary = "Verify new device", description = "Confirms the email OTP issued during a new-device login attempt. On success the candidate "
             + "device is added to the user's trusted-devices list, the previous active session is revoked, "
             + "fresh tokens are issued, and both the refresh-token and device-id cookies are set.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OTP verified — device trusted, previous session revoked, fresh tokens issued"),
+            @ApiResponse(responseCode = "404", description = "Account does not exist")
+    })
     @PostMapping("/auth/verify-device")
     public ResponseEntity<ResponseData<ResLoginDTO>> verifyDevice(
             @Valid @RequestBody VerifyDeviceRequestDTO data,
@@ -181,6 +191,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Request password reset OTP", description = "Sends a one-time code to the user's email if it exists")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "If the email exists, an OTP is emailed. The response is identical whether or not the email is registered (to avoid account enumeration)."))
     @PostMapping("/auth/forgot-password")
     public ResponseEntity<ResponseData<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO data) {
         passwordRecoveryService.requestOtp(data.getEmail());
@@ -190,6 +201,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Reset password", description = "Confirms OTP and sets a new password for the account")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "Password reset successfully"))
     @PostMapping("/auth/reset-password")
     public ResponseEntity<ResponseData<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO data) {
         passwordRecoveryService.resetPassword(data.getEmail(), data.getOtp(), data.getNewPassword());
@@ -197,6 +209,10 @@ public class AuthController {
     }
 
     @Operation(summary = "Get current account", description = "Returns the authenticated user's profile and role")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Current account profile and role"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
+    })
     @GetMapping("/auth/account")
     public ResponseData<ResLoginDTO.GetAccountUser> getAccount() {
         String emailLogin = SecurityUtils.getCurrentUserLogin().isPresent()
@@ -221,6 +237,10 @@ public class AuthController {
     @Operation(summary = "Update own profile", description = "Self-service update of the authenticated user's name, phone, department, and avatar. "
             + "Role, status, email, and password are intentionally not editable through this endpoint — "
             + "password changes go through POST /auth/change-password.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profile updated"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
+    })
     @PutMapping("/auth/account")
     public ResponseData<ResLoginDTO.UserData> updateOwnProfile(@Valid @RequestBody UpdateOwnProfileRequestDTO data) {
         String emailLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(
@@ -239,6 +259,10 @@ public class AuthController {
 
     @Operation(summary = "Change own password", description = "Self-service password change. Requires the current password; "
             + "on success every session is revoked (refresh token + active session) and the user must log in again.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password changed — every session is revoked and the user must log in again"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
+    })
     @PostMapping("/auth/change-password")
     public ResponseEntity<ResponseData<Void>> changeOwnPassword(@Valid @RequestBody ChangePasswordRequestDTO data) {
         String emailLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(
@@ -262,6 +286,11 @@ public class AuthController {
     }
 
     @Operation(summary = "Refresh access token", description = "Exchanges the refresh-token cookie for a new access token and rotates the refresh cookie")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "New access token issued and refresh cookie rotated"),
+            @ApiResponse(responseCode = "400", description = "Refresh token missing, invalid, or expired"),
+            @ApiResponse(responseCode = "401", description = "Session revoked by a newer login on another device")
+    })
     @GetMapping("/auth/refresh")
     public ResponseEntity<ResponseData<ResLoginDTO>> getRefreshToken(
             @CookieValue(name = REFRESH_TOKEN_COOKIE, defaultValue = "error") String refreshToken) throws Exception {
@@ -311,6 +340,10 @@ public class AuthController {
     }
 
     @Operation(summary = "Logout", description = "Invalidates the current refresh token and clears the cookie")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Logged out — refresh token invalidated and cookie cleared"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
+    })
     @PostMapping("/auth/logout")
     public ResponseEntity<ResponseData<Void>> logoutAccount() {
         String email = SecurityUtils.getCurrentUserLogin().isPresent()
