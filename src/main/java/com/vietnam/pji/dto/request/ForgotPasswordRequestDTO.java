@@ -11,4 +11,6 @@ public class ForgotPasswordRequestDTO {
     @NotBlank(message = "email không được để trống")
     @Email(message = "email không hợp lệ")
     private String email;
+
+    private String captchaToken;
 }

@@ -36,6 +36,7 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
     private static final String OTP_KEY_PREFIX = "auth:device_otp:";
     private static final String ATTEMPTS_KEY_PREFIX = "auth:device_otp_attempts:";
     private static final String CHALLENGE_KEY_PREFIX = "auth:device_challenge:";
+    private static final String COOLDOWN_KEY_PREFIX = "auth:device_otp_cooldown:";
 
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
@@ -48,6 +49,9 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
 
     @Value("${app.device-verification.max-attempts:5}")
     private long maxAttempts;
+
+    @Value("${app.device-verification.request-cooldown-seconds:60}")
+    private long requestCooldownSeconds;
 
     @Value("${app.device-verification.trusted-device-days:30}")
     private int trustedDeviceDays;
@@ -66,6 +70,9 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
             // always fail.
             log.info("Device verification challenge requested for unknown email: {}", normalizedEmail);
             return UUID.randomUUID().toString();
+        }
+        if (!claimCooldown(normalizedEmail)) {
+            throw new InvalidDataException("Vui lòng chờ trước khi yêu cầu mã OTP mới.");
         }
 
         String challengeId = UUID.randomUUID().toString();
@@ -191,5 +198,17 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
 
     private String challengeKey(String challengeId) {
         return CHALLENGE_KEY_PREFIX + challengeId;
+    }
+
+    private boolean claimCooldown(String email) {
+        if (requestCooldownSeconds <= 0) {
+            return true;
+        }
+        Boolean claimed = redisTemplate.opsForValue().setIfAbsent(
+                COOLDOWN_KEY_PREFIX + email,
+                "1",
+                requestCooldownSeconds,
+                TimeUnit.SECONDS);
+        return Boolean.TRUE.equals(claimed);
     }
 }

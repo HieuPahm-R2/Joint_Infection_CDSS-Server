@@ -17,6 +17,7 @@ import com.vietnam.pji.services.auth.DeviceVerificationService;
 import com.vietnam.pji.services.auth.PasswordRecoveryService;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.security.CaptchaService;
 import com.vietnam.pji.utils.SecurityUtils;
 import com.vietnam.pji.utils.mapper.RoleMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,6 +66,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityUtils securityUtils;
     private final PasswordRecoveryService passwordRecoveryService;
+    private final CaptchaService captchaService;
     private final RoleMapper roleMapper;
     private final DeviceVerificationService deviceVerificationService;
     private final UserTrustedDeviceRepository userTrustedDeviceRepository;
@@ -193,7 +195,9 @@ public class AuthController {
     @Operation(summary = "Request password reset OTP", description = "Sends a one-time code to the user's email if it exists")
     @ApiResponses(@ApiResponse(responseCode = "200", description = "If the email exists, an OTP is emailed. The response is identical whether or not the email is registered (to avoid account enumeration)."))
     @PostMapping("/auth/forgot-password")
-    public ResponseEntity<ResponseData<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO data) {
+    public ResponseEntity<ResponseData<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO data,
+            HttpServletRequest request) {
+        captchaService.verify(data.getCaptchaToken(), clientIp(request));
         passwordRecoveryService.requestOtp(data.getEmail());
         return ResponseEntity.ok(new ResponseData<>(
                 HttpStatus.OK.value(),

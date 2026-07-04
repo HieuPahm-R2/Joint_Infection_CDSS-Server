@@ -99,6 +99,8 @@ In `dev`, all of these have working defaults — override only what you need. In
 | `AI_SERVICE_URL` | RAG/Agentic service base URL | `http://localhost:8000` |
 | `EXTRACT_IMAGES_URL` | Image extraction service URL | `http://localhost:8002` |
 | `MAIL_HOST` / `MAIL_USERNAME` / `MAIL_PASSWORD` | SMTP for OTP/recovery email | Gmail SMTP |
+| `PASSWORD_RECOVERY_REQUEST_COOLDOWN_SECONDS` / `DEVICE_VERIFICATION_REQUEST_COOLDOWN_SECONDS` | Redis-backed per-email cooldown before another OTP email can be sent | `60` / `60` |
+| `CAPTCHA_ENABLED` / `CAPTCHA_PROVIDER` / `CAPTCHA_SECRET_KEY` | CAPTCHA verification for password recovery OTP requests (`turnstile` or `recaptcha`) | disabled / `turnstile` / empty |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry traces endpoint | `http://localhost:4318/v1/traces` |
 
 > **Tip:** Do not commit secrets. For local development, set sensitive values (mail password, AI keys) through your IDE run configuration (e.g. VS Code `launch.json` env) or an uncommitted `.env`.
@@ -202,9 +204,12 @@ Actuator endpoints exposed: `health`, `info`, `prometheus`, `metrics`.
 
 Bucket4j-backed rate limiting (Redis) is enabled by default (`RATE_LIMIT_ENABLED=true`):
 
-- **auth** routes: 5 req/min (per IP)
+- **auth-email** routes (`forgot-password`, `verify-device`): 3 req/10 min (per IP)
+- **auth** routes (`login`, `refresh`, `reset-password`): 5 req/min (per IP)
 - **AI** routes (`ai-recommendations`, `ai-chat`): 30 req/min per user
 - **default** `/api/v1/**`: 200 req/min per user
+
+Password recovery CAPTCHA is off in the dev profile by default. In production it is enabled unless `CAPTCHA_ENABLED=false`; set `CAPTCHA_SECRET_KEY` on the backend and `VITE_TURNSTILE_SITE_KEY` when building the frontend image.
 
 ---
 

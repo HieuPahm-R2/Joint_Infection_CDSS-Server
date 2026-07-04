@@ -30,6 +30,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String OTP_KEY_PREFIX = "password_recovery:otp:";
     private static final String ATTEMPTS_KEY_PREFIX = "password_recovery:attempts:";
+    private static final String COOLDOWN_KEY_PREFIX = "password_recovery:cooldown:";
 
     private final UserRepository userRepository;
     private final RedisTemplate<String, String> redisTemplate;
@@ -42,6 +43,9 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Value("${app.password-recovery.max-attempts:5}")
     private long maxAttempts;
 
+    @Value("${app.password-recovery.request-cooldown-seconds:60}")
+    private long requestCooldownSeconds;
+
     @Value("${app.password-recovery.mail-from:no-reply@pji.local}")
     private String mailFrom;
 
@@ -51,6 +55,10 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         User user = userRepository.findByEmail(normalizedEmail);
         if (user == null) {
             log.info("Password recovery OTP requested for unknown email: {}", normalizedEmail);
+            return;
+        }
+        if (!claimCooldown(normalizedEmail)) {
+            log.info("Password recovery OTP request suppressed by cooldown for email: {}", normalizedEmail);
             return;
         }
 
@@ -135,5 +143,17 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
 
     private String attemptsKey(String email) {
         return ATTEMPTS_KEY_PREFIX + email;
+    }
+
+    private boolean claimCooldown(String email) {
+        if (requestCooldownSeconds <= 0) {
+            return true;
+        }
+        Boolean claimed = redisTemplate.opsForValue().setIfAbsent(
+                COOLDOWN_KEY_PREFIX + email,
+                "1",
+                requestCooldownSeconds,
+                TimeUnit.SECONDS);
+        return Boolean.TRUE.equals(claimed);
     }
 }

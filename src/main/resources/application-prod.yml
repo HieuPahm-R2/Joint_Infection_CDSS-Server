@@ -41,3 +41,7 @@ openapi:
   service:
     serverUrl: https://108pog.site
     serverName: Production
+
+app:
+  captcha:
+    enabled: ${CAPTCHA_ENABLED:true}
