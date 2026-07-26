@@ -69,6 +69,12 @@ The API starts on **http://localhost:8085**.
 
 On first startup Flyway applies all migrations and a bootstrap admin is created (see [Bootstrap admin](#bootstrap-admin)).
 
+### Startup and first-login effects
+
+Starting the application with the documented Maven command is stateful. Flyway can apply database migrations; startup runners can insert endpoint permissions, add ADMIN grants, evict Redis permission-cache entries, and create bootstrap permission, role, and user records when their code paths apply.
+
+A login without a valid trusted-device cookie returns a device-verification challenge instead of tokens. That branch writes cooldown, OTP, and challenge entries to Redis and attempts to send the OTP through configured SMTP; `POST /api/v1/auth/verify-device` verifies the OTP, persists trusted-device state, and issues tokens.
+
 ---
 
 ## Configuration
@@ -77,13 +83,13 @@ Configuration lives in `src/main/resources/`:
 
 - `application.yaml` — base config common to all profiles
 - `application-dev.yml` — local development overrides (active by default)
-- `application-prod.yml` — production overrides (no fallback defaults; fails fast on missing secrets)
+- `application-prod.yml` — production overrides; base fallback values still apply unless this profile overrides them
 
 Select a profile via `SPRING_PROFILES_ACTIVE` (`dev` | `prod`).
 
 ### Key environment variables
 
-In `dev`, all of these have working defaults — override only what you need. In `prod`, they are **required**.
+In `dev`, all of these have working defaults — override only what you need. In `prod`, effective values come from both base and production profile configuration.
 
 | Variable | Purpose | Dev default |
 |----------|---------|-------------|
