@@ -32,3 +32,7 @@ CLAUDE.md
 feature.txt
 ### VS Code ###
 .vscode/
+
+# Harness core maintenance binary
+scripts/bin/harness
+scripts/bin/harness.exe
