@@ -1,13 +1,10 @@
 package com.vietnam.pji.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -16,9 +13,7 @@ public class ClinicalRecordRequestDTO {
     @NotNull(message = "episodeId must not be null")
     private Long episodeId;
 
-    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate illnessOnsetDate;
+    private String onsetTiming;
 
     private String bloodPressure;
 
@@ -38,7 +33,7 @@ public class ClinicalRecordRequestDTO {
 
     private Boolean pmmaAllergy;
 
-    private String suspectedInfectionType;
+    private String suspectedTransmissionRoute;
 
     private String softTissue; // tình trạng mô mềm
 
@@ -46,7 +41,5 @@ public class ClinicalRecordRequestDTO {
 
     private String prosthesisJoint;
 
-    private Integer daysSinceIndexArthroplasty;
-
-    private String notations;
+    private String surgicalDisease;
 }

@@ -1,14 +1,15 @@
 package com.vietnam.pji.model.medical;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.vietnam.pji.constant.ImplantType;
-import com.vietnam.pji.constant.InfectionType;
+import com.vietnam.pji.constant.OnsetTiming;
+import com.vietnam.pji.constant.SuspectedTransmissionRoute;
 import com.vietnam.pji.model.AbstractEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -27,8 +28,9 @@ public class ClinicalRecord extends AbstractEntity<Long> {
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private PjiEpisode episode;
 
-    @Column(name = "illness_onset_date")
-    private LocalDate illnessOnsetDate;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "onset_timing", length = 30)
+    private OnsetTiming onsetTiming;
 
     @Column(name = "blood_pressure", length = 20)
     private String bloodPressure;
@@ -58,9 +60,8 @@ public class ClinicalRecord extends AbstractEntity<Long> {
     private Boolean pmmaAllergy;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "suspected_infection_type")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    private InfectionType suspectedInfectionType;
+    @Column(name = "suspected_transmission_route", length = 30)
+    private SuspectedTransmissionRoute suspectedTransmissionRoute;
 
     private String softTissue; // tình trạng mô mềm
 
@@ -72,10 +73,28 @@ public class ClinicalRecord extends AbstractEntity<Long> {
     @Column(name = "prosthesis_joint")
     private String prosthesisJoint;
 
-    @Column(name = "days_since_index_arthroplasty")
-    private Integer daysSinceIndexArthroplasty;
+    @Column(name = "surgical_disease", columnDefinition = "TEXT")
+    private String surgicalDisease;
 
-    @Column(name = "notations", columnDefinition = "TEXT")
-    private String notations;
+    /**
+     * Internal compatibility contract for the clinical snapshot assembler.
+     * The public API exposes {@code surgicalDisease}; the diagnostic snapshot
+     * keeps its established {@code notations} key until that contract is
+     * versioned independently.
+     */
+    @JsonIgnore
+    public String getNotations() {
+        return surgicalDisease;
+    }
+
+    /**
+     * Snapshot compatibility only. The business field has been removed from
+     * persistence and public API use; legacy snapshots retain the key with a
+     * null value until their schema is versioned.
+     */
+    @JsonIgnore
+    public Integer getDaysSinceIndexArthroplasty() {
+        return null;
+    }
 
 }

@@ -60,6 +60,8 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
                     new LabFieldSpec("fluid", "fa_3", "Bạch cầu (Dịch)", "", "Tế bào/Vi trường")),
             Map.entry("synovial_PMN",
                     new LabFieldSpec("fluid", "fa_6", "%PMN (Dịch)", "", "%")),
+            Map.entry("synovial_CRP",
+                    new LabFieldSpec("fluid", "fa_5", "Định lượng CRP (Dịch)", "< 6.9", "mg/l")),
             Map.entry("synovial_alpha_defensin",
                     new LabFieldSpec("fluid", "fa_extra_alpha_defensin",
                             "Alpha Defensin (dịch)", "< 0.12", "ug/mL")),
@@ -93,6 +95,25 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
     private static final Map<String, String> FIELD_TO_BIOCHEM_KEY = Map.of(
             "renal_function", "creatinine",
             "liver_function", "alt");
+
+    private static final Set<String> ELIGIBLE_COMPLETENESS_FIELDS = Set.of(
+            "sinus_tract",
+            "culture_results",
+            "positive_histology",
+            "infection_type",
+            "implant_stability",
+            "allergies",
+            "serum_CRP",
+            "serum_ESR",
+            "serum_D_Dimer",
+            "serum_IL6",
+            "synovial_WBC",
+            "synovial_PMN",
+            "synovial_CRP",
+            "synovial_alpha_defensin",
+            "synovial_LE",
+            "renal_function",
+            "liver_function");
 
     /**
      * Diacritic-insensitive name aliases used by {@link #autoFulfillForEpisode}
@@ -256,6 +277,10 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
 
         for (Map<String, Object> item : missingItems) {
             String field = (String) item.get("field");
+            if (!ELIGIBLE_COMPLETENESS_FIELDS.contains(field)) {
+                log.warn("Skipping unsupported completeness field: episodeId={}, field={}", episodeId, field);
+                continue;
+            }
             String category = (String) item.get("category");
             String importance = (String) item.get("importance");
             String message = (String) item.get("message");
@@ -424,13 +449,12 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
         return switch (field) {
             case "sinus_tract" -> cr != null && cr.getSinusTract() != null;
             case "infection_type" -> cr != null
-                    && cr.getSuspectedInfectionType() != null
-                    && cr.getSuspectedInfectionType() != com.vietnam.pji.constant.InfectionType.UNKNOWN;
+                    && cr.getOnsetTiming() != null;
             case "implant_stability" -> cr != null
                     && cr.getImplantStability() != null
                     && cr.getImplantStability() != com.vietnam.pji.constant.ImplantType.UNKNOWN;
             case "allergies" -> mh != null && mh.getIsAllergy() != null;
-            case "culture_results" -> cultures != null && cultures.size() >= 2;
+            case "culture_results" -> hasUsableCultureResult(cultures);
             case "positive_histology" -> hasHistologyFindings(surgeries);
             default -> false;
         };
@@ -444,6 +468,23 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
             if (f.contains("giai phau benh") || f.contains("giải phẫu bệnh")
                     || f.contains("sinh thiet") || f.contains("sinh thiết")
                     || f.contains("histolog") || f.contains("patholog")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasUsableCultureResult(List<com.vietnam.pji.model.medical.CultureResult> cultures) {
+        if (cultures == null) {
+            return false;
+        }
+        for (com.vietnam.pji.model.medical.CultureResult c : cultures) {
+            if (c.getResult() != null
+                    && c.getResult() != com.vietnam.pji.constant.CultureStatus.PENDING
+                    && c.getResult() != com.vietnam.pji.constant.CultureStatus.NOT_PERFORMED) {
+                return true;
+            }
+            if (c.getName() != null && !c.getName().isBlank()) {
                 return true;
             }
         }

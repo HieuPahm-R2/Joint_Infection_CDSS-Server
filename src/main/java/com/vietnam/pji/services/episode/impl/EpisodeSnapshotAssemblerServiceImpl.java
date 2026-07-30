@@ -130,8 +130,8 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
             Map<String, Object> clinical = new LinkedHashMap<>();
             clinical.put("record_id", cr.getId());
             clinical.put("recorded_at", cr.getCreatedAt() != null ? cr.getCreatedAt().toInstant().toString() : null);
-            clinical.put("illness_onset_date",
-                    cr.getIllnessOnsetDate() != null ? cr.getIllnessOnsetDate().toString() : null);
+            clinical.put("onset_timing", cr.getOnsetTiming());
+            clinical.put("illness_onset_date", null);
 
             Map<String, Object> vitals = new LinkedHashMap<>();
             vitals.put("blood_pressure", cr.getBloodPressure());
@@ -149,7 +149,9 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
             clinical.put("symptoms", symptoms);
 
             Map<String, Object> infection = new LinkedHashMap<>();
-            infection.put("suspected_infection_type", cr.getSuspectedInfectionType());
+            infection.put("onset_timing", cr.getOnsetTiming());
+            infection.put("suspected_infection_type", cr.getOnsetTiming());
+            infection.put("suspected_transmission_route", cr.getSuspectedTransmissionRoute());
             infection.put("hematogenous_suspected", cr.getHematogenousSuspected());
             infection.put("implant_stability", cr.getImplantStability());
             infection.put("soft_tissue", cr.getSoftTissue());

@@ -52,6 +52,22 @@ class PjiDiagnosticRuleEngineTest {
         assertEquals(0, alphaDefensin.get("score_awarded"));
     }
 
+    @Test
+    void evaluateUsesOnsetTimingAndSuspectedTransmissionRoute() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
+                "clinical_records", Map.of(
+                        "symptoms", Map.of("sinus_tract", false),
+                        "infection_assessment", Map.of(
+                                "onset_timing", "DELAYED_SUBACUTE",
+                                "suspected_transmission_route", "CONTIGUOUS_SPREAD"))));
+
+        Map<String, Object> reasoning = map(result.itemJson().get("ai_reasoning"));
+
+        assertEquals("DELAYED_SUBACUTE", reasoning.get("infection_classification"));
+        assertTrue(reasoning.get("infection_classification_reasoning").toString()
+                .contains("CONTIGUOUS_SPREAD"));
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> map(Object value) {
         return (Map<String, Object>) value;

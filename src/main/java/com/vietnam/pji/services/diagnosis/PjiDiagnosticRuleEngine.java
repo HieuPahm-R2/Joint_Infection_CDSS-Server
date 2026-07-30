@@ -597,7 +597,11 @@ public class PjiDiagnosticRuleEngine {
     }
 
     private String infectionClassification(Map<String, Object> snapshot) {
-        return getNested(snapshot, "clinical_records", "infection_assessment", "suspected_infection_type")
+        Optional<Object> onsetTiming = getNested(
+                snapshot, "clinical_records", "infection_assessment", "onset_timing");
+        return onsetTiming
+                .or(() -> getNested(
+                        snapshot, "clinical_records", "infection_assessment", "suspected_infection_type"))
                 .map(Object::toString)
                 .filter(s -> !s.isBlank())
                 .orElse("UNKNOWN");
@@ -605,13 +609,13 @@ public class PjiDiagnosticRuleEngine {
 
     private String infectionClassificationReasoning(Map<String, Object> snapshot) {
         String type = infectionClassification(snapshot);
-        Optional<Object> onset = getNested(snapshot, "clinical_records", "illness_onset_date");
+        Optional<Object> transmissionRoute = getNested(
+                snapshot, "clinical_records", "infection_assessment", "suspected_transmission_route");
         Optional<Object> hematogenous = getNested(snapshot, "clinical_records", "infection_assessment", "hematogenous_suspected");
         Optional<Object> stability = getNested(snapshot, "clinical_records", "infection_assessment", "implant_stability");
         List<String> facts = new ArrayList<>();
-        facts.add("Phân loại bác sĩ nhập: " + type);
-        onset.map(Object::toString).flatMap(this::daysSince).ifPresent(days ->
-                facts.add("khởi phát triệu chứng khoảng " + days + " ngày trước snapshot"));
+        facts.add("Thời điểm khởi phát so với phẫu thuật gần nhất: " + type);
+        transmissionRoute.ifPresent(v -> facts.add("đường lây nhiễm nghi ngờ: " + v));
         hematogenous.ifPresent(v -> facts.add("nghi đường máu: " + v));
         stability.ifPresent(v -> facts.add("ổn định implant: " + v));
         return String.join("; ", facts) + ".";
