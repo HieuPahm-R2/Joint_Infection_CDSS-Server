@@ -2,6 +2,7 @@ package com.vietnam.pji.config.auth;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -55,6 +56,15 @@ public class WebSecurityConfiguration {
                                 .cors(Customizer.withDefaults()) // This will use the CorsConfigure bean
                                 .authorizeHttpRequests(
                                                 authz -> authz
+                                                                .requestMatchers(
+                                                                                HttpMethod.GET,
+                                                                                "/api/v1/upload-sessions/*/validate")
+                                                                .permitAll()
+                                                                .requestMatchers(
+                                                                                HttpMethod.POST,
+                                                                                "/api/v1/upload-sessions/*/presigned-url",
+                                                                                "/api/v1/upload-sessions/*/complete")
+                                                                .permitAll()
                                                                 .requestMatchers(whileList).permitAll()
                                                                 .anyRequest().authenticated())
                                 .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults())

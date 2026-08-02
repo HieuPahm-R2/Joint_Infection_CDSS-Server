@@ -156,7 +156,7 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
             infection.put("implant_stability", cr.getImplantStability());
             infection.put("soft_tissue", cr.getSoftTissue());
             infection.put("pmma_allergy", cr.getPmmaAllergy());
-            infection.put("prosthesis_joint", cr.getProsthesisJoint());
+            infection.put("general_exam", cr.getGeneralExam());
             infection.put("days_since_index_arthroplasty", cr.getDaysSinceIndexArthroplasty());
             clinical.put("infection_assessment", infection);
 

@@ -134,14 +134,15 @@ public class EpisodeController {
     @Operation(summary = "Update full episode aggregate",
             description = "Atomically upsert/diff an episode and all its child records in one transaction")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Episode and all child records upserted atomically"),
+            @ApiResponse(responseCode = "200",
+                    description = "Episode aggregate updated; response contains status and message only"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
     @PutMapping("/episodes/{id}/full")
-    public ResponseData<EpisodeFullResponseDTO> updateEpisodeFull(
+    public ResponseData<Void> updateEpisodeFull(
             @PathVariable Long id, @Valid @RequestBody EpisodeFullRequestDTO request) {
-        return new ResponseData<>(HttpStatus.OK.value(), "Episode updated successfully",
-                episodeAggregateService.saveFull(id, request));
+        episodeAggregateService.updateFull(id, request);
+        return new ResponseData<>(HttpStatus.OK.value(), "Episode updated successfully");
     }
 }

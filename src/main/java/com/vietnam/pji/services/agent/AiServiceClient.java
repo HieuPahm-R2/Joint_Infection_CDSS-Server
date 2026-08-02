@@ -19,8 +19,7 @@ public class AiServiceClient {
         this.aiRestTemplate = aiRestTemplate;
     }
 
-    public AiRecommendationGenerateResponseDTO generateRecommendation(
-            AiRecommendationGenerateRequestDTO request) {
+    public AiRecommendationGenerateResponseDTO generateRecommendation(AiRecommendationGenerateRequestDTO request) {
         log.info("Calling AI service for recommendation generation, requestId={}", request.getRequestId());
 
         return aiRestTemplate.postForObject(

@@ -9,7 +9,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,14 +29,8 @@ public class PjiEpisode extends AbstractEntity<Long> {
     @Column(name = "admission_date", nullable = false)
     private LocalDate admissionDate;
 
-    @Column(name = "admission_time")
-    private LocalTime admissionTime;
-
     @Column(name = "discharge_date")
     private LocalDate dischargeDate;
-
-    @Column(name = "discharge_time")
-    private LocalTime dischargeTime;
 
     @Column(name = "admission_count")
     private Integer admissionCount;
@@ -50,9 +43,6 @@ public class PjiEpisode extends AbstractEntity<Long> {
 
     @Column(name = "initial_department_admission_date")
     private LocalDate initialDepartmentAdmissionDate;
-
-    @Column(name = "initial_department_admission_time")
-    private LocalTime initialDepartmentAdmissionTime;
 
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;

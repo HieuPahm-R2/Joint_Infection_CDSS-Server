@@ -16,6 +16,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -29,15 +31,30 @@ public class ExtractImagesClient {
     }
 
     public Map<String, Object> upload(MultipartFile[] files) throws IOException {
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        List<OcrUploadFile> payloads = new ArrayList<>();
         for (MultipartFile file : files) {
-            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
+            payloads.add(new OcrUploadFile(
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    file.getBytes()));
+        }
+        return uploadFiles(payloads);
+    }
+
+    public Map<String, Object> uploadFiles(List<OcrUploadFile> files) throws IOException {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        for (OcrUploadFile file : files) {
+            ByteArrayResource resource = new ByteArrayResource(file.content()) {
                 @Override
                 public String getFilename() {
-                    return file.getOriginalFilename();
+                    return file.filename();
                 }
             };
-            body.add("files", resource);
+            HttpHeaders partHeaders = new HttpHeaders();
+            if (file.contentType() != null && !file.contentType().isBlank()) {
+                partHeaders.setContentType(MediaType.parseMediaType(file.contentType()));
+            }
+            body.add("files", new HttpEntity<>(resource, partHeaders));
         }
 
         HttpHeaders headers = new HttpHeaders();

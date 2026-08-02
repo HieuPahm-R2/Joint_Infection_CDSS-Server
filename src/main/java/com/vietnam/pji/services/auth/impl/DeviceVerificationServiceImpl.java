@@ -71,8 +71,11 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
             log.info("Device verification challenge requested for unknown email: {}", normalizedEmail);
             return UUID.randomUUID().toString();
         }
-        if (!claimCooldown(normalizedEmail)) {
-            throw new InvalidDataException("Vui lòng chờ trước khi yêu cầu mã OTP mới.");
+
+        String currentChallengeId = activeCooldownChallengeId(normalizedEmail);
+        if (currentChallengeId != null) {
+            log.info("Device verification OTP request reused active challenge for email: {}", normalizedEmail);
+            return currentChallengeId;
         }
 
         String challengeId = UUID.randomUUID().toString();
@@ -89,7 +92,26 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
             throw new InvalidDataException("Không thể khởi tạo phiên xác thực thiết bị.", ex);
         }
 
-        sendOtpEmail(normalizedEmail, otp);
+        if (!claimCooldown(normalizedEmail, challengeId)) {
+            redisTemplate.delete(otpKey);
+            redisTemplate.delete(challengeKey(challengeId));
+
+            currentChallengeId = activeCooldownChallengeId(normalizedEmail);
+            if (currentChallengeId != null) {
+                log.info("Device verification OTP request reused active challenge for email: {}", normalizedEmail);
+                return currentChallengeId;
+            }
+            throw new InvalidDataException("Vui lòng chờ trước khi yêu cầu mã OTP mới.");
+        }
+
+        try {
+            sendOtpEmail(normalizedEmail, otp);
+        } catch (InvalidDataException ex) {
+            redisTemplate.delete(otpKey);
+            redisTemplate.delete(challengeKey(challengeId));
+            redisTemplate.delete(cooldownKey(normalizedEmail));
+            throw ex;
+        }
         return challengeId;
     }
 
@@ -200,15 +222,48 @@ public class DeviceVerificationServiceImpl implements DeviceVerificationService 
         return CHALLENGE_KEY_PREFIX + challengeId;
     }
 
-    private boolean claimCooldown(String email) {
+    private boolean claimCooldown(String email, String challengeId) {
         if (requestCooldownSeconds <= 0) {
             return true;
         }
         Boolean claimed = redisTemplate.opsForValue().setIfAbsent(
-                COOLDOWN_KEY_PREFIX + email,
-                "1",
+                cooldownKey(email),
+                challengeId,
                 requestCooldownSeconds,
                 TimeUnit.SECONDS);
         return Boolean.TRUE.equals(claimed);
+    }
+
+    private String activeCooldownChallengeId(String email) {
+        if (requestCooldownSeconds <= 0) {
+            return null;
+        }
+
+        String challengeId = redisTemplate.opsForValue().get(cooldownKey(email));
+        if (challengeId == null || challengeId.isBlank()) {
+            return null;
+        }
+
+        String challengeJson = redisTemplate.opsForValue().get(challengeKey(challengeId));
+        if (challengeJson == null || challengeJson.isBlank()) {
+            redisTemplate.delete(cooldownKey(email));
+            return null;
+        }
+
+        try {
+            Challenge challenge = objectMapper.readValue(challengeJson, Challenge.class);
+            if (Objects.equals(challenge.email(), email)) {
+                return challengeId;
+            }
+        } catch (JsonProcessingException ex) {
+            log.warn("Unable to read active device-verification challenge for email: {}", email, ex);
+        }
+
+        redisTemplate.delete(cooldownKey(email));
+        return null;
+    }
+
+    private String cooldownKey(String email) {
+        return COOLDOWN_KEY_PREFIX + email;
     }
 }

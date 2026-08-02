@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -19,6 +20,17 @@ public class ExtractImagesService {
     public ExtractImageJobResponseDTO createJob(MultipartFile[] files, Long episodeId) throws IOException {
         log.info("Creating extract-images job, fileCount={}, episodeId={}", files.length, episodeId);
         Map<String, Object> upstream = extractImagesClient.upload(files);
+        return ExtractImageJobResponseDTO.builder()
+                .jobId(asString(upstream, "job_id"))
+                .status(asString(upstream, "status"))
+                .fileCount(asInteger(upstream, "file_count"))
+                .build();
+    }
+
+    public ExtractImageJobResponseDTO createJob(List<OcrUploadFile> files, Long episodeId) throws IOException {
+        log.info("Creating extract-images job from object storage, fileCount={}, episodeId={}",
+                files.size(), episodeId);
+        Map<String, Object> upstream = extractImagesClient.uploadFiles(files);
         return ExtractImageJobResponseDTO.builder()
                 .jobId(asString(upstream, "job_id"))
                 .status(asString(upstream, "status"))

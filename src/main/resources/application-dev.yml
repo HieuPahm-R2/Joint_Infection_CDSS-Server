@@ -38,11 +38,13 @@ secure:
   jwt:
     # Dev-only default. Override in prod via env. Safe to commit because it's
     # only used when SPRING_PROFILES_ACTIVE=dev.
-    base64-secret: ${JWT_BASE64_SECRET:Thm2YoflXUlz108mmwLd3NA/wAVy6+USFlIoGoPuk88ac9IXLDfov3be8bryQlVQZ2V1RhKzY36mogSUiNEULg==}
+    base64-secret: ${JWT_BASE64_SECRET:Thm2YoflXUlz108mmwLd3NAwAVy6+UaaSFlIoGoPuk88ac9IXLDfov3be8bryQlVQZ2V1RhKzY36mogSUiNEULg==}
 
 app:
   cors:
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4173,http://localhost:5173}
+  upload-session:
+    public-web-url: ${UPLOAD_SESSION_PUBLIC_WEB_URL:http://localhost:5173}
 
 ai:
   service:

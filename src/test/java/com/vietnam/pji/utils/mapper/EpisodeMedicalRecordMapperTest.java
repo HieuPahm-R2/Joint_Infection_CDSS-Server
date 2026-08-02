@@ -27,9 +27,7 @@ class EpisodeMedicalRecordMapperTest {
 
         EpisodeRequestDTO dto = new EpisodeRequestDTO();
         dto.setAdmissionDate(LocalDate.of(2026, 6, 29));
-        dto.setAdmissionTime(LocalTime.of(8, 23));
         dto.setInitialDepartmentAdmissionDate(LocalDate.of(2026, 6, 29));
-        dto.setInitialDepartmentAdmissionTime(LocalTime.of(8, 23));
         dto.setInitialDepartmentTreatmentDays(1);
         dto.setDepartmentTransfers(List.of(transfer));
         dto.setAdmissionCount(2);
@@ -45,7 +43,6 @@ class EpisodeMedicalRecordMapperTest {
 
         PjiEpisode entity = mapper.toEntity(dto);
 
-        assertThat(entity.getAdmissionTime()).isEqualTo(LocalTime.of(8, 23));
         assertThat(entity.getInitialDepartmentTreatmentDays()).isEqualTo(1);
         assertThat(entity.getDepartmentTransfers()).singleElement().satisfies(mapped -> {
             assertThat(mapped.getDepartment()).isEqualTo("B2");

@@ -8,7 +8,6 @@ import com.vietnam.pji.constant.SuspectedTransmissionRoute;
 import com.vietnam.pji.model.AbstractEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import java.io.Serializable;
 import java.math.BigDecimal;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -70,8 +69,8 @@ public class ClinicalRecord extends AbstractEntity<Long> {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private ImplantType implantStability; // độ ổn định của cấy ghép
 
-    @Column(name = "prosthesis_joint")
-    private String prosthesisJoint;
+    @Column(name = "general_exam", columnDefinition = "TEXT")
+    private String generalExam;
 
     @Column(name = "surgical_disease", columnDefinition = "TEXT")
     private String surgicalDisease;

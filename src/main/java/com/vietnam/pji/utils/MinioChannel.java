@@ -35,6 +35,23 @@ public class MinioChannel {
         createBucket(bucket);
     }
 
+    /**
+     * Create a bucket without a public-read policy. Upload-session objects contain
+     * clinical data and must only be accessible through short-lived presigned URLs.
+     */
+    @SneakyThrows
+    public void initPrivateBucket(String bucket) {
+        boolean found = minioClient.bucketExists(
+                BucketExistsArgs.builder().bucket(bucket).build());
+        if (!found) {
+            minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+        }
+        // This dedicated bucket must remain capability-only even if it was
+        // pre-created with a legacy public-read policy.
+        minioClient.deleteBucketPolicy(
+                DeleteBucketPolicyArgs.builder().bucket(bucket).build());
+    }
+
     @SneakyThrows
     private void createBucket(final String name) {
         final var found = minioClient.bucketExists(
@@ -121,6 +138,60 @@ public class MinioChannel {
                         .object(objectKey)
                         .expiry(expiryMinutes, TimeUnit.MINUTES)
                         .build());
+    }
+
+    @SneakyThrows
+    public String presignedGetUrl(String bucket, String objectKey, long expirySeconds) {
+        if (!StringUtils.hasText(bucket) || !StringUtils.hasText(objectKey)) {
+            return null;
+        }
+        return minioPresignerClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .method(Method.GET)
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .expiry((int) Math.min(Integer.MAX_VALUE, Math.max(1L, expirySeconds)), TimeUnit.SECONDS)
+                        .build());
+    }
+
+    @SneakyThrows
+    public String presignedPutUrl(String bucket, String objectKey, long expirySeconds) {
+        return minioPresignerClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .method(Method.PUT)
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .expiry((int) Math.min(Integer.MAX_VALUE, Math.max(1L, expirySeconds)), TimeUnit.SECONDS)
+                        .build());
+    }
+
+    @SneakyThrows
+    public StoredObjectMetadata statObject(String bucket, String objectKey) {
+        StatObjectResponse response = minioClient.statObject(
+                StatObjectArgs.builder().bucket(bucket).object(objectKey).build());
+        return new StoredObjectMetadata(response.size(), response.contentType());
+    }
+
+    @SneakyThrows
+    public byte[] readPrefix(String bucket, String objectKey, int length) {
+        try (GetObjectResponse input = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .offset(0L)
+                        .length((long) length)
+                        .build())) {
+            return input.readNBytes(length);
+        }
+    }
+
+    @SneakyThrows
+    public void deleteObject(String bucket, String objectKey) {
+        minioClient.removeObject(
+                RemoveObjectArgs.builder().bucket(bucket).object(objectKey).build());
+    }
+
+    public record StoredObjectMetadata(long size, String contentType) {
     }
 
     public byte[] download(String bucket, String name) {

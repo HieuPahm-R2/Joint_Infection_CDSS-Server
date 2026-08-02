@@ -22,4 +22,10 @@ public interface EpisodeAggregateService {
      * @param episodeId existing episode id to update, or {@code null} to create a new one
      */
     EpisodeFullResponseDTO saveFull(Long episodeId, EpisodeFullRequestDTO dto);
+
+    /**
+     * Atomically update an existing episode aggregate without rebuilding the full
+     * read response.
+     */
+    void updateFull(Long episodeId, EpisodeFullRequestDTO dto);
 }

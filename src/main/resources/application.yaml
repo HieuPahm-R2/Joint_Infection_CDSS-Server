@@ -50,7 +50,7 @@ spring:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:hieuxitsuki05@gmail.com}
-    password: ${MAIL_PASSWORD:ejdvrfwylicuhvda}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -82,7 +82,7 @@ secure:
     secure: ${COOKIE_SECURE:false}
     same-site: ${COOKIE_SAME_SITE:Lax}
   jwt:
-    base64-secret: ${JWT_BASE64_SECRET:qoAEABDke07AVLepXB4aCMtsT0wMAqR5x2VFyldsnx6e75YQkJH2UcZKTjEyoNgG71SBCXfq5N6NVZxWOfsHQ==}
+    base64-secret: ${JWT_BASE64_SECRET:chucmungthanglon}
     refresh-token-validity-in-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}   # 7 days
     access-token-validity-in-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}        # 1 hour
 
@@ -116,6 +116,17 @@ app:
     request-cooldown-seconds: ${DEVICE_VERIFICATION_REQUEST_COOLDOWN_SECONDS:60}
     trusted-device-days: ${DEVICE_VERIFICATION_TRUSTED_DAYS:30}
     mail-from: ${DEVICE_VERIFICATION_MAIL_FROM:${app.password-recovery.mail-from}}
+  upload-session:
+    ttl: 5m
+    max-file-size-bytes: 5242880
+    max-files: 10
+    bucket: ${UPLOAD_SESSION_MINIO_BUCKET:clinical-upload-sessions}
+    public-web-url: ${UPLOAD_SESSION_PUBLIC_WEB_URL:}
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/heic
+      - image/heif
 
 api:
   prefix: /api/v1
@@ -141,6 +152,13 @@ extract-images:
 rate-limit:
   enabled: ${RATE_LIMIT_ENABLED:true}
   rules:
+    - name: upload-session-create
+      paths:
+        - /api/v1/patients/*/upload-sessions
+      capacity: 10
+      refill-tokens: 10
+      refill-period: 5m
+      per-user: true
     - name: auth-email
       paths:
         - /api/v1/auth/forgot-password

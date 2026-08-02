@@ -13,15 +13,18 @@ class ClinicalRecordSurgicalDiseaseMapperTest {
     private final ClinicalRecordMapper mapper = Mappers.getMapper(ClinicalRecordMapper.class);
 
     @Test
-    void mapsSurgicalDiseaseAndKeepsSnapshotGetterOutOfPublicJson() throws Exception {
+    void mapsGeneralExamAndSurgicalDiseaseAndKeepsSnapshotGetterOutOfPublicJson() throws Exception {
         ClinicalRecordRequestDTO dto = new ClinicalRecordRequestDTO();
+        dto.setGeneralExam("Tỉnh táo, dấu hiệu sinh tồn ổn định");
         dto.setSurgicalDisease("Theo dõi lỏng khớp háng nhân tạo");
 
         ClinicalRecord record = mapper.toEntity(dto);
         String json = new ObjectMapper().writeValueAsString(record);
 
+        assertThat(record.getGeneralExam()).isEqualTo("Tỉnh táo, dấu hiệu sinh tồn ổn định");
         assertThat(record.getSurgicalDisease()).isEqualTo("Theo dõi lỏng khớp háng nhân tạo");
         assertThat(record.getNotations()).isEqualTo(record.getSurgicalDisease());
+        assertThat(json).contains("\"generalExam\":\"Tỉnh táo, dấu hiệu sinh tồn ổn định\"");
         assertThat(json).contains("\"surgicalDisease\":\"Theo dõi lỏng khớp háng nhân tạo\"");
         assertThat(json).doesNotContain("\"notations\"");
     }

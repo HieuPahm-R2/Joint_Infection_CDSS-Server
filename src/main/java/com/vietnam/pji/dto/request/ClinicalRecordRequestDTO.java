@@ -39,7 +39,7 @@ public class ClinicalRecordRequestDTO {
 
     private String implantStability; // độ ổn định của cấy ghép
 
-    private String prosthesisJoint;
+    private String generalExam;
 
     private String surgicalDisease;
 }

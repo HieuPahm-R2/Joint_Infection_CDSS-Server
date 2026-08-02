@@ -12,7 +12,6 @@ import com.vietnam.pji.constant.DirectEnum;
 import com.vietnam.pji.model.medical.EpisodeDepartmentTransfer;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
 @Getter
@@ -27,15 +26,9 @@ public class EpisodeRequestDTO {
     @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate admissionDate;
 
-    @JsonFormat(pattern = "HH:mm")
-    private LocalTime admissionTime;
-
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate dischargeDate;
-
-    @JsonFormat(pattern = "HH:mm")
-    private LocalTime dischargeTime;
 
     private Integer admissionCount;
 
@@ -46,9 +39,6 @@ public class EpisodeRequestDTO {
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     @JsonFormat(pattern = "dd/MM/yyyy")
     private LocalDate initialDepartmentAdmissionDate;
-
-    @JsonFormat(pattern = "HH:mm")
-    private LocalTime initialDepartmentAdmissionTime;
 
     private String reason;
 

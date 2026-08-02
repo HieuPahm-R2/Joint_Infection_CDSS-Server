@@ -105,6 +105,17 @@ public class EpisodeAggregateServiceImpl implements EpisodeAggregateService {
     @Override
     @Transactional
     public EpisodeFullResponseDTO saveFull(Long episodeId, EpisodeFullRequestDTO dto) {
+        Long epId = persistFull(episodeId, dto);
+        return getFull(epId);
+    }
+
+    @Override
+    @Transactional
+    public void updateFull(Long episodeId, EpisodeFullRequestDTO dto) {
+        persistFull(episodeId, dto);
+    }
+
+    private Long persistFull(Long episodeId, EpisodeFullRequestDTO dto) {
         // 1. Episode (create or update)
         PjiEpisode episode = (episodeId == null)
                 ? episodeService.create(dto.getEpisode())
@@ -160,7 +171,7 @@ public class EpisodeAggregateServiceImpl implements EpisodeAggregateService {
         // Bust the AI snapshot cache so the next recommendation sees fresh data.
         redisService.evictSnapshotCache(epId);
 
-        return getFull(epId);
+        return epId;
     }
 
     // ---- child sync helpers -------------------------------------------------

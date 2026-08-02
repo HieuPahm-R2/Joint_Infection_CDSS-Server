@@ -51,7 +51,7 @@
 			<artifactId>opentelemetry-exporter-otlp</artifactId>
 		</dependency>
 		<!-- DB Calls: JDBC instrumentation via Micrometer Observation.
-		     Emits spans with db.system/db.statement so SigNoz "Database Calls" populates. -->
+		     Emits spans with db.system/db.statement for Jaeger trace analysis. -->
 		<dependency>
 			<groupId>net.ttddyy.observation</groupId>
 			<artifactId>datasource-micrometer-spring-boot</artifactId>

@@ -35,6 +35,14 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_CHAT = "ai.chat.request";
     public static final String ROUTING_KEY_CHAT_RESULT = "ai.chat.result";
 
+    // --- QR upload session (Backend API → Backend OCR bridge) ---
+    public static final String UPLOAD_SESSION_QUEUE = "upload.session.queue";
+    public static final String ROUTING_KEY_UPLOAD_SESSION_COMPLETED = "upload.session.completed";
+    public static final String UPLOAD_SESSION_CLEANUP_DELAY_QUEUE = "upload.session.cleanup.delay.queue";
+    public static final String UPLOAD_SESSION_CLEANUP_QUEUE = "upload.session.cleanup.queue";
+    public static final String ROUTING_KEY_UPLOAD_SESSION_CLEANUP_DELAY = "upload.session.cleanup.delay";
+    public static final String ROUTING_KEY_UPLOAD_SESSION_CLEANUP = "upload.session.cleanup";
+
     // Exchange
 
     @Bean
@@ -126,6 +134,50 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(chatResultQueue)
                 .to(aiExchange)
                 .with(ROUTING_KEY_CHAT_RESULT);
+    }
+
+    @Bean
+    public Queue uploadSessionQueue() {
+        return QueueBuilder.durable(UPLOAD_SESSION_QUEUE).build();
+    }
+
+    @Bean
+    public Binding uploadSessionBinding(Queue uploadSessionQueue, TopicExchange aiExchange) {
+        return BindingBuilder.bind(uploadSessionQueue)
+                .to(aiExchange)
+                .with(ROUTING_KEY_UPLOAD_SESSION_COMPLETED);
+    }
+
+    @Bean
+    public Queue uploadSessionCleanupDelayQueue() {
+        return QueueBuilder.durable(UPLOAD_SESSION_CLEANUP_DELAY_QUEUE)
+                .withArgument("x-message-ttl", 5 * 60 * 1000)
+                .withArgument("x-dead-letter-exchange", EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", ROUTING_KEY_UPLOAD_SESSION_CLEANUP)
+                .build();
+    }
+
+    @Bean
+    public Binding uploadSessionCleanupDelayBinding(
+            Queue uploadSessionCleanupDelayQueue,
+            TopicExchange aiExchange) {
+        return BindingBuilder.bind(uploadSessionCleanupDelayQueue)
+                .to(aiExchange)
+                .with(ROUTING_KEY_UPLOAD_SESSION_CLEANUP_DELAY);
+    }
+
+    @Bean
+    public Queue uploadSessionCleanupQueue() {
+        return QueueBuilder.durable(UPLOAD_SESSION_CLEANUP_QUEUE).build();
+    }
+
+    @Bean
+    public Binding uploadSessionCleanupBinding(
+            Queue uploadSessionCleanupQueue,
+            TopicExchange aiExchange) {
+        return BindingBuilder.bind(uploadSessionCleanupQueue)
+                .to(aiExchange)
+                .with(ROUTING_KEY_UPLOAD_SESSION_CLEANUP);
     }
 
     // =====================================================================
