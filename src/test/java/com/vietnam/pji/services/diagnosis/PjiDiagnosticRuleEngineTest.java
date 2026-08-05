@@ -11,7 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PjiDiagnosticRuleEngineTest {
 
-    private final PjiDiagnosticRuleEngine engine = new PjiDiagnosticRuleEngine();
+    private final PjiDiagnosticSnapshotReader snapshotReader = new PjiDiagnosticSnapshotReader();
+    private final PjiDiagnosticRuleEngine engine = new PjiDiagnosticRuleEngine(
+            new PjiCultureEvidenceEvaluator(snapshotReader),
+            new PjiDiagnosticCriteriaEvaluator(snapshotReader),
+            new PjiDiagnosticReportBuilder(snapshotReader));
 
     @Test
     void evaluateUsesMajorCultureCriteriaAndFlatLabTemplateShape() {
@@ -66,6 +70,29 @@ class PjiDiagnosticRuleEngineTest {
         assertEquals("DELAYED_SUBACUTE", reasoning.get("infection_classification"));
         assertTrue(reasoning.get("infection_classification_reasoning").toString()
                 .contains("CONTIGUOUS_SPREAD"));
+    }
+
+    @Test
+    void evaluateRetainsCultureResistanceAndDataQualityWarnings() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
+                "culture_results", Map.of("items", List.of(
+                        Map.of(
+                                "organism_name", "Staphylococcus aureus",
+                                "result_status", "POSITIVE",
+                                "had_antibiotics_before", true,
+                                "sensitivities", List.of(Map.of(
+                                        "antibiotic_name", "Oxacillin",
+                                        "sensitivity_code", "R"))),
+                        Map.of(
+                                "organism_name", "Staphylococcus aureus",
+                                "result_status", "POSITIVE")))));
+
+        Map<String, Object> reasoning = map(result.itemJson().get("ai_reasoning"));
+        Map<String, Object> identifiedOrganism = map(reasoning.get("identified_organism"));
+
+        assertEquals("MRSA", identifiedOrganism.get("resistance_profile"));
+        assertTrue(result.warningsJson().stream()
+                .anyMatch(warning -> "DATA_QUALITY".equals(warning.get("type"))));
     }
 
     @SuppressWarnings("unchecked")
