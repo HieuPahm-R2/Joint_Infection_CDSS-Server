@@ -75,7 +75,7 @@ class PjiDiagnosticReportBuilder {
         explanation.put("diagnosis_summary", primaryDiagnosis(snapshot, interpretation));
         explanation.put("diagnostic_basis", "Backend rule engine using explicit major criteria and ICM-style minor scoring.");
         return new PjiDiagnosticRuleEngine.DiagnosticResult(
-                "Chẩn đoán hệ thống - Đánh giá nhiễm trùng khớp giả theo tiêu chí ICM",
+                "Chẩn đoán hệ thống - Đánh giá nhiễm trùng khớp nhân tạo theo tiêu chí ICM",
                 itemJson, assessment, explanation, warnings);
     }
 
@@ -180,9 +180,9 @@ class PjiDiagnosticReportBuilder {
         String joint = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "prosthesis_joint")
                 .map(Object::toString).filter(value -> !value.isBlank()).map(value -> " " + value.replace('_', ' ')).orElse("");
         return switch (interpretation) {
-            case "INFECTED" -> "Nhiễm trùng khớp giả" + joint;
-            case "INCONCLUSIVE" -> "Chưa xác định nhiễm trùng khớp giả" + joint;
-            default -> "Chưa đủ bằng chứng nhiễm trùng khớp giả" + joint;
+            case "INFECTED" -> "Nhiễm trùng khớp nhân tạo" + joint;
+            case "INCONCLUSIVE" -> "Chưa xác định nhiễm trùng khớp nhân tạo" + joint;
+            default -> "Chưa đủ bằng chứng nhiễm trùng khớp nhân tạo" + joint;
         };
     }
 
