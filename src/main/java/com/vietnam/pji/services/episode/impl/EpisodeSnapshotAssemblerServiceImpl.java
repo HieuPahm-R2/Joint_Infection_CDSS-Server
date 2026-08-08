@@ -176,6 +176,8 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
                 item.put("surgery_date", s.getSurgeryDate() != null ? s.getSurgeryDate().toString() : null);
                 item.put("surgery_type", s.getSurgeryType());
                 item.put("findings", s.getFindings());
+                item.put("positive_histology", s.getPositiveHistology());
+                item.put("intraoperative_purulence", s.getIntraoperativePurulence());
                 surgeryItems.add(item);
             }
             Map<String, Object> surgeriesMap = new LinkedHashMap<>();

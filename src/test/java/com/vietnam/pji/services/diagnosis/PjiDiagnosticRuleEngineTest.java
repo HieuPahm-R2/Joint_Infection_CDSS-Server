@@ -47,13 +47,82 @@ class PjiDiagnosticRuleEngineTest {
 
         Map<String, Object> minorCriteria = map(itemJson.get("minor_criteria_scoring"));
         List<Map<String, Object>> minorItems = listOfMaps(minorCriteria.get("items"));
-        Map<String, Object> alphaDefensin = minorItems.stream()
-                .filter(item -> "Positive Alpha-Defensin".equals(item.get("criterion")))
+        Map<String, Object> synovialGroup = minorItems.stream()
+                .filter(item -> item.get("criterion").toString().contains("Alpha-Defensin"))
                 .findFirst()
                 .orElseThrow();
 
-        assertFalse((Boolean) alphaDefensin.get("result"));
-        assertEquals(0, alphaDefensin.get("score_awarded"));
+        assertTrue((Boolean) synovialGroup.get("result"));
+        assertEquals(3, synovialGroup.get("score_awarded"));
+        assertTrue(synovialGroup.get("result_detail").toString().contains("không đạt cutoff 1.0"));
+        assertEquals(7, minorItems.size());
+        assertFalse(minorItems.stream().anyMatch(item -> item.get("criterion").toString().contains("Synovial CRP")));
+    }
+
+    @Test
+    void evaluateAppliesAcuteAndChronicThresholdsFromIcmReference() {
+        Map<String, Object> labs = Map.of(
+                "crp", Map.of("value", 50, "unit", "mg/L"),
+                "esr", Map.of("value", 50, "unit", "mm/h"),
+                "d_dimer", Map.of("value", 1, "unit", "mg/L FEU"),
+                "synovial_wbc", Map.of("value", 5000, "unit", "cells/µL"),
+                "synovial_pmn", Map.of("value", 80, "unit", "%"),
+                "alpha_defensin", Map.of("value", 0.5));
+
+        PjiDiagnosticRuleEngine.DiagnosticResult acute = engine.evaluate(Map.of(
+                "clinical_records", Map.of("infection_assessment", Map.of("onset_timing", "EARLY")),
+                "lab_results", labs));
+        PjiDiagnosticRuleEngine.DiagnosticResult chronic = engine.evaluate(Map.of("lab_results", labs));
+
+        assertEquals(0, map(acute.itemJson().get("scoring_system")).get("total_score"));
+        assertEquals(8, map(chronic.itemJson().get("scoring_system")).get("total_score"));
+    }
+
+    @Test
+    void evaluateCapsReferenceTableMinorCriteriaAtSixteenPoints() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
+                "clinical_records", Map.of("symptoms", Map.of("sinus_tract", false)),
+                "lab_results", Map.of(
+                        "crp", Map.of("value", 11, "unit", "mg/L"),
+                        "esr", Map.of("value", 31, "unit", "mm/h"),
+                        "synovial_wbc", Map.of("value", 3001, "unit", "cells/µL"),
+                        "synovial_pmn", Map.of("value", 71, "unit", "%"),
+                        "alpha_defensin", Map.of("value", 1.0)),
+                "culture_results", Map.of("items", List.of(
+                        Map.of("organism_name", "Staphylococcus epidermidis", "result_status", "POSITIVE"))),
+                "surgeries", Map.of("items", List.of(Map.of(
+                        "findings", "Positive histology >5 PMN/HPF; purulence present")))));
+
+        Map<String, Object> minor = map(result.itemJson().get("minor_criteria_scoring"));
+        List<Map<String, Object>> items = listOfMaps(minor.get("items"));
+
+        assertEquals(16, minor.get("total_minor_score"));
+        assertEquals(16, items.stream().mapToInt(item -> (Integer) item.get("score_weight")).sum());
+        assertEquals(7, items.size());
+    }
+
+    @Test
+    void evaluatePrefersStructuredSurgeryEvidenceOverLegacyFindingsText() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
+                "surgeries", Map.of("items", List.of(Map.of(
+                        "positive_histology", false,
+                        "intraoperative_purulence", true,
+                        "findings", "Positive histology >5 PMN/HPF; no purulence")))));
+
+        Map<String, Object> minor = map(result.itemJson().get("minor_criteria_scoring"));
+        List<Map<String, Object>> items = listOfMaps(minor.get("items"));
+        Map<String, Object> histology = items.stream()
+                .filter(item -> item.get("criterion").toString().contains("Giải phẫu bệnh"))
+                .findFirst().orElseThrow();
+        Map<String, Object> purulence = items.stream()
+                .filter(item -> item.get("criterion").toString().contains("Mủ trong khớp"))
+                .findFirst().orElseThrow();
+
+        assertFalse((Boolean) histology.get("result"));
+        assertEquals(0, histology.get("score_awarded"));
+        assertTrue((Boolean) purulence.get("result"));
+        assertEquals(3, purulence.get("score_awarded"));
+        assertEquals(3, minor.get("total_minor_score"));
     }
 
     @Test

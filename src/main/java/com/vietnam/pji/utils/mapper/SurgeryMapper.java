@@ -18,5 +18,9 @@ public interface SurgeryMapper extends EntityMapper<SurgeryRequestDTO, Surgery> 
             nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
             nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS)
     @Mapping(target = "episode", ignore = true)
+    @Mapping(target = "positiveHistology",
+            nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.SET_TO_NULL)
+    @Mapping(target = "intraoperativePurulence",
+            nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.SET_TO_NULL)
     void update(SurgeryRequestDTO dto, @MappingTarget Surgery entity);
 }

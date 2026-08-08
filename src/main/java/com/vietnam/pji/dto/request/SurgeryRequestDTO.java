@@ -27,4 +27,8 @@ public class SurgeryRequestDTO {
     private String woundStatus;
 
     private String findings;
+
+    private Boolean positiveHistology;
+
+    private Boolean intraoperativePurulence;
 }

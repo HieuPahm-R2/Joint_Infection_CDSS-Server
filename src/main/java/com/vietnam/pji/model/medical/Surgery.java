@@ -29,4 +29,10 @@ public class Surgery extends AbstractEntity<Long> {
     @Column(name = "findings", columnDefinition = "TEXT")
     private String findings;
 
+    @Column(name = "positive_histology")
+    private Boolean positiveHistology;
+
+    @Column(name = "intraoperative_purulence")
+    private Boolean intraoperativePurulence;
+
 }

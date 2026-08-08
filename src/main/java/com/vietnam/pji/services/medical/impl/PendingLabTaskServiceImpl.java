@@ -464,6 +464,9 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
         if (surgeries == null)
             return false;
         for (com.vietnam.pji.model.medical.Surgery s : surgeries) {
+            if (s.getPositiveHistology() != null) {
+                return true;
+            }
             String f = s.getFindings() == null ? "" : s.getFindings().toLowerCase();
             if (f.contains("giai phau benh") || f.contains("giải phẫu bệnh")
                     || f.contains("sinh thiet") || f.contains("sinh thiết")
