@@ -25,8 +25,8 @@ public class DoctorRecommendationReview extends AbstractEntity<Long> {
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private PjiEpisode episode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "run_id", nullable = false)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "run_id", nullable = false, unique = true)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private AiRecommendationRun run;
 
@@ -62,5 +62,16 @@ public class DoctorRecommendationReview extends AbstractEntity<Long> {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "agreement_json", columnDefinition = "jsonb")
     private Map<String, Object> agreementJson;
+
+    /** Exactly one review version per episode may be the signed final version. */
+    @Column(name = "is_final_decision", nullable = false)
+    @Builder.Default
+    private boolean finalDecision = false;
+
+    @OneToOne(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
+    private DoctorFinalDecision doctorFinalDecision;
+
+    @OneToOne(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
+    private PharmacistFinalDecision pharmacistFinalDecision;
 
 }

@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,8 +33,9 @@ public class AiRecommendationGenerateRequestDTO implements Serializable {
     @JsonProperty("snapshot_data_json")
     private Map<String, Object> snapshotDataJson;
 
-    @JsonProperty("prior_accepted_diagnoses")
-    private List<PriorAcceptedDiagnosisDTO> priorAcceptedDiagnoses;
+    /** Backend-owned diagnosis used by RAG as the treatment-planning baseline. */
+    @JsonProperty("rule_based_diagnosis")
+    private RuleBasedDiagnosisDTO ruleBasedDiagnosis;
 
     private Options options;
 

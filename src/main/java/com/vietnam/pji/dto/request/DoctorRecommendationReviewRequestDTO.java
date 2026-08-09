@@ -2,6 +2,7 @@ package com.vietnam.pji.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -28,4 +29,11 @@ public class DoctorRecommendationReviewRequestDTO {
 
     /** Per-criterion AI-vs-doctor agreement + overall agreement_rate (0-100). */
     private Map<String, Object> agreementJson;
+
+    /** Structured doctor-owned conclusion and surgery plan for this run version. */
+    @Valid
+    private DoctorFinalDecisionRequestDTO doctorFinalDecision;
+
+    /** When true, this review replaces any previously selected version in the episode. */
+    private Boolean selectAsFinalDecision;
 }

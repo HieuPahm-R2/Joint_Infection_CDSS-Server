@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,12 +31,8 @@ public class RabbitMQRecommendationMessage implements Serializable {
     /** Options for the AI service (language, includeCitations, topK). */
     private Map<String, Object> options;
 
-    /**
-     * Physician-validated diagnoses from prior episodes for this patient. Used by
-     * the RAG worker as grounding context so subsequent runs stay consistent with
-     * what the doctor has already accepted. May be empty when no prior reviews exist.
-     */
-    private List<PriorAcceptedDiagnosisDTO> priorAcceptedDiagnoses;
+    /** Backend-owned diagnosis used by RAG as the treatment-planning baseline. */
+    private RuleBasedDiagnosisDTO ruleBasedDiagnosis;
 
     /** Retry counter — incremented by the Python worker on transient failures. */
     @Builder.Default

@@ -1,6 +1,7 @@
 package com.vietnam.pji.controller.agentic;
 
 import com.vietnam.pji.dto.request.DoctorRecommendationReviewRequestDTO;
+import com.vietnam.pji.dto.request.PharmacistFinalDecisionRequestDTO;
 import com.vietnam.pji.dto.response.ResponseData;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
 import com.vietnam.pji.services.doctor.DoctorRecommendationReviewService;
@@ -49,6 +50,34 @@ public class DoctorRecommendationReviewController {
         return new ResponseData<>(HttpStatus.OK.value(),
                 "Fetch reviews successfully",
                 reviewService.getReviewsByEpisodeId(episodeId));
+    }
+
+    @GetMapping("/episodes/{episodeId}/doctor-reviews/final-decision")
+    @Operation(summary = "Get the selected final recommendation version for an episode")
+    public ResponseData<DoctorRecommendationReview> getFinalDecision(@PathVariable Long episodeId) {
+        return new ResponseData<>(HttpStatus.OK.value(),
+                "Fetch final decision successfully",
+                reviewService.getFinalDecisionByEpisodeId(episodeId));
+    }
+
+    @PutMapping("/episodes/{episodeId}/doctor-reviews/{reviewId}/final-decision")
+    @Operation(summary = "Select one reviewed recommendation version as final")
+    public ResponseData<DoctorRecommendationReview> selectFinalDecision(
+            @PathVariable Long episodeId,
+            @PathVariable Long reviewId) {
+        return new ResponseData<>(HttpStatus.OK.value(),
+                "Final decision version selected successfully",
+                reviewService.selectFinalDecision(episodeId, reviewId));
+    }
+
+    @PutMapping("/doctor-reviews/{reviewId}/pharmacist-final-decision")
+    @Operation(summary = "Create or update the pharmacist decision for a review version")
+    public ResponseData<DoctorRecommendationReview> savePharmacistFinalDecision(
+            @PathVariable Long reviewId,
+            @Valid @RequestBody PharmacistFinalDecisionRequestDTO request) {
+        return new ResponseData<>(HttpStatus.OK.value(),
+                "Pharmacist final decision saved successfully",
+                reviewService.savePharmacistFinalDecision(reviewId, request));
     }
 
     @GetMapping("/doctor-reviews/stats")

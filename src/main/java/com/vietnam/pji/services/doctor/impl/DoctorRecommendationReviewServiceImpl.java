@@ -2,13 +2,19 @@ package com.vietnam.pji.services.doctor.impl;
 
 import com.vietnam.pji.constant.ReviewStatus;
 import com.vietnam.pji.dto.request.DoctorRecommendationReviewRequestDTO;
+import com.vietnam.pji.dto.request.DoctorFinalDecisionRequestDTO;
+import com.vietnam.pji.dto.request.PharmacistFinalDecisionRequestDTO;
 import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
+import com.vietnam.pji.model.agentic.DoctorFinalDecision;
+import com.vietnam.pji.model.agentic.PharmacistFinalDecision;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
+import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
+import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.UserService;
@@ -21,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +36,8 @@ import java.util.List;
 public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendationReviewService {
 
     private final DoctorRecommendationReviewRepository reviewRepository;
+    private final DoctorFinalDecisionRepository doctorFinalDecisionRepository;
+    private final PharmacistFinalDecisionRepository pharmacistFinalDecisionRepository;
     private final AiRecommendationRunRepository runRepository;
     private final EpisodeRepository episodeRepository;
     private final UserService userService;
@@ -63,8 +73,59 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         review.setAgreementJson(request.getAgreementJson());
 
         DoctorRecommendationReview saved = reviewRepository.save(review);
+        upsertDoctorFinalDecision(saved, request);
+        if (Boolean.TRUE.equals(request.getSelectAsFinalDecision())) {
+            saved = selectFinalDecision(episodeId, saved.getId());
+        }
         eagerInit(saved);
         return saved;
+    }
+
+    private void upsertDoctorFinalDecision(
+            DoctorRecommendationReview review,
+            DoctorRecommendationReviewRequestDTO request) {
+        DoctorFinalDecisionRequestDTO decisionRequest = request.getDoctorFinalDecision();
+        Map<String, Object> diagnosis = decisionRequest != null
+                ? decisionRequest.getDiagnosisJson()
+                : request.getDoctorDiagnosisJson();
+        Map<String, Object> surgery = decisionRequest != null
+                ? decisionRequest.getSurgeryPlanJson()
+                : extractLegacyPlan(request.getModificationJson(), "surgery");
+
+        if (diagnosis == null && surgery == null) {
+            return;
+        }
+
+        DoctorFinalDecision decision = doctorFinalDecisionRepository.findByReviewId(review.getId())
+                .orElse(DoctorFinalDecision.builder().review(review).build());
+        decision.setDiagnosisJson(diagnosis != null ? diagnosis : Map.of());
+        decision.setSurgeryPlanJson(surgery);
+        DoctorFinalDecision saved = doctorFinalDecisionRepository.save(decision);
+        review.setDoctorFinalDecision(saved);
+
+        // Retain legacy response fields while clients migrate to the new entities.
+        review.setDoctorDiagnosisJson(saved.getDiagnosisJson());
+        review.setModificationJson(mergeLegacyPlan(review.getModificationJson(), "surgery", surgery));
+        reviewRepository.save(review);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractLegacyPlan(Map<String, Object> source, String key) {
+        Object value = source != null ? source.get(key) : null;
+        return value instanceof Map<?, ?> ? (Map<String, Object>) value : null;
+    }
+
+    private Map<String, Object> mergeLegacyPlan(
+            Map<String, Object> source,
+            String key,
+            Map<String, Object> value) {
+        Map<String, Object> merged = source != null ? new HashMap<>(source) : new HashMap<>();
+        if (value != null) {
+            merged.put(key, value);
+        } else {
+            merged.remove(key);
+        }
+        return merged.isEmpty() ? null : merged;
     }
 
     private void validateReviewAccess(PjiEpisode episode, AiRecommendationRun run) {
@@ -124,6 +185,65 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         List<DoctorRecommendationReview> reviews = reviewRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId);
         reviews.forEach(this::eagerInit);
         return reviews;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DoctorRecommendationReview getFinalDecisionByEpisodeId(Long episodeId) {
+        DoctorRecommendationReview review = reviewRepository
+                .findByEpisodeIdAndFinalDecisionTrue(episodeId)
+                .orElse(null);
+        if (review != null) {
+            eagerInit(review);
+        }
+        return review;
+    }
+
+    @Override
+    @Transactional
+    public DoctorRecommendationReview selectFinalDecision(Long episodeId, Long reviewId) {
+        DoctorRecommendationReview review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor review not found with id: " + reviewId));
+        if (review.getEpisode() == null || !episodeId.equals(review.getEpisode().getId())) {
+            throw new ForbiddenException("Doctor review does not belong to this episode");
+        }
+        validateReviewAccess(review.getEpisode(), review.getRun());
+
+        reviewRepository.clearFinalDecisionForEpisode(episodeId);
+        review.setFinalDecision(true);
+        DoctorRecommendationReview saved = reviewRepository.save(review);
+        eagerInit(saved);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public DoctorRecommendationReview savePharmacistFinalDecision(
+            Long reviewId,
+            PharmacistFinalDecisionRequestDTO request) {
+        DoctorRecommendationReview review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor review not found with id: " + reviewId));
+        validateReviewAccess(review.getEpisode(), review.getRun());
+
+        PharmacistFinalDecision decision = pharmacistFinalDecisionRepository.findByReviewId(reviewId)
+                .orElse(PharmacistFinalDecision.builder().review(review).build());
+        decision.setSystemicAntibioticPlanJson(request.getSystemicAntibioticPlanJson());
+        decision.setLocalAntibioticPlanJson(request.getLocalAntibioticPlanJson());
+        decision.setSensitivityResultsJson(request.getSensitivityResultsJson());
+        decision.setNotes(request.getNotes());
+        PharmacistFinalDecision savedDecision = pharmacistFinalDecisionRepository.save(decision);
+        review.setPharmacistFinalDecision(savedDecision);
+
+        Map<String, Object> legacy = mergeLegacyPlan(
+                review.getModificationJson(),
+                "systemicAntibiotic",
+                request.getSystemicAntibioticPlanJson());
+        legacy = mergeLegacyPlan(legacy, "localAntibiotic", request.getLocalAntibioticPlanJson());
+        review.setModificationJson(legacy);
+
+        DoctorRecommendationReview saved = reviewRepository.save(review);
+        eagerInit(saved);
+        return saved;
     }
 
     @Override
@@ -211,6 +331,8 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
             Hibernate.initialize(review.getEpisode().getPatient());
         }
         Hibernate.initialize(review.getRun());
+        Hibernate.initialize(review.getDoctorFinalDecision());
+        Hibernate.initialize(review.getPharmacistFinalDecision());
         if (review.getRun() != null) {
             Hibernate.initialize(review.getRun().getEpisode());
             if (review.getRun().getEpisode() != null) {

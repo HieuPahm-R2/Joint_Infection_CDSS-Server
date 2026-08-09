@@ -16,14 +16,13 @@ import com.vietnam.pji.repository.ai.AiRagCitationRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.dto.request.RabbitMQRecommendationMessage;
+import com.vietnam.pji.dto.request.RuleBasedDiagnosisDTO;
 import com.vietnam.pji.message.RabbitMQPublisher;
-import com.vietnam.pji.dto.request.PriorAcceptedDiagnosisDTO;
 import com.vietnam.pji.services.agent.AiRecommendationService;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
-import com.vietnam.pji.services.feat.PriorAcceptedDiagnosisAssemblerService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.SecurityUtils;
 import com.vietnam.pji.utils.mapper.AiRecommendationRunMapper;
@@ -50,7 +49,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final AiRecommendationItemRepository itemRepository;
     private final AiRagCitationRepository citationRepository;
     private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
-    private final PriorAcceptedDiagnosisAssemblerService priorAcceptedDiagnosisAssemblerService;
     private final AiServiceClient aiServiceClient;
     private final RabbitMQPublisher rabbitMQPublisher;
     private final PjiDiagnosticRuleEngine diagnosticRuleEngine;
@@ -65,11 +63,11 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
         // TX1: Build snapshot + create run
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
-        List<PriorAcceptedDiagnosisDTO> priorDiagnoses = priorAcceptedDiagnosisAssemblerService.assemble(episodeId);
-
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
         AiRecommendationRun run = createRun(episode, snapshot, triggerType);
-        saveRuleBasedDiagnostic(run.getId(), diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson()));
+        PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
+                diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
+        saveRuleBasedDiagnostic(run.getId(), diagnostic);
         run = runRepository.findById(run.getId()).orElse(run);
 
         String requestId = run.getRequestId();
@@ -83,7 +81,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                     .episodeId(episodeId)
                     .snapshotId(snapshot.getId())
                     .snapshotDataJson(buildResult.getSnapshotDataJson())
-                    .priorAcceptedDiagnoses(priorDiagnoses)
+                    .ruleBasedDiagnosis(RuleBasedDiagnosisDTO.from(diagnostic))
                     .options(AiRecommendationGenerateRequestDTO.Options.builder().build())
                     .build();
 
@@ -105,11 +103,11 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
         // Build snapshot + create run (same as sync)
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
-        List<PriorAcceptedDiagnosisDTO> priorDiagnoses = priorAcceptedDiagnosisAssemblerService.assemble(episodeId);
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
         AiRecommendationRun run = createRun(episode, snapshot, triggerType);
-        AiRecommendationItem diagnosticItem = saveRuleBasedDiagnostic(
-                run.getId(), diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson()));
+        PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
+                diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
+        AiRecommendationItem diagnosticItem = saveRuleBasedDiagnostic(run.getId(), diagnostic);
         run = runRepository.findById(run.getId()).orElse(run);
 
         // Publish to RabbitMQ — Python worker will process asynchronously
@@ -120,7 +118,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 .snapshotId(snapshot.getId())
                 .triggerType(triggerType.name())
                 .snapshotDataJson(buildResult.getSnapshotDataJson())
-                .priorAcceptedDiagnoses(priorDiagnoses)
+                .ruleBasedDiagnosis(RuleBasedDiagnosisDTO.from(diagnostic))
                 .options(Map.of("language", "vi", "include_citations", true, "top_k", 5))
                 .build();
 
