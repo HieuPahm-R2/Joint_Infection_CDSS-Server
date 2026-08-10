@@ -58,6 +58,7 @@ public class ActiveSessionFilter extends OncePerRequestFilter {
             if (tokenSid != null && !tokenSid.isBlank() && email != null && !email.isBlank()) {
                 String activeSid = redisService.getActiveSession(email);
                 if (activeSid != null && !activeSid.equals(tokenSid)) {
+                    // hàm này sẽ từ chối và ngắt request
                     writeSessionRevoked(request, response);
                     return;
                 }

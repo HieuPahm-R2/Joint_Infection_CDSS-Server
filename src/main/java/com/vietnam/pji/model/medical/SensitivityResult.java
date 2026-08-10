@@ -4,10 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.vietnam.pji.model.AbstractEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.io.Serializable;
-import java.util.Date;
 
 @Getter
 @Setter

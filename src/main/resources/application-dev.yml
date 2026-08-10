@@ -7,6 +7,11 @@
 #   - override sensitive values (mail password, AI keys) via VS Code launch.json env or an .env file you do NOT commit.
 # =============================================================================
 spring:
+  devtools:
+    restart:
+      # Migrations must be complete before a deliberate application restart;
+      # otherwise Flyway can apply a file while an agent is still editing it.
+      additional-exclude: db/migration/**
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/pji_dev}
     username: ${SPRING_DATASOURCE_USERNAME:user}
