@@ -3,18 +3,15 @@ package com.vietnam.pji.services.doctor.impl;
 import com.vietnam.pji.constant.ReviewStatus;
 import com.vietnam.pji.dto.request.DoctorRecommendationReviewRequestDTO;
 import com.vietnam.pji.dto.request.DoctorFinalDecisionRequestDTO;
-import com.vietnam.pji.dto.request.PharmacistFinalDecisionRequestDTO;
 import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
 import com.vietnam.pji.model.agentic.DoctorFinalDecision;
-import com.vietnam.pji.model.agentic.PharmacistFinalDecision;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
 import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
-import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.UserService;
@@ -37,7 +34,6 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
 
     private final DoctorRecommendationReviewRepository reviewRepository;
     private final DoctorFinalDecisionRepository doctorFinalDecisionRepository;
-    private final PharmacistFinalDecisionRepository pharmacistFinalDecisionRepository;
     private final AiRecommendationRunRepository runRepository;
     private final EpisodeRepository episodeRepository;
     private final UserService userService;
@@ -217,36 +213,6 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
     }
 
     @Override
-    @Transactional
-    public DoctorRecommendationReview savePharmacistFinalDecision(
-            Long reviewId,
-            PharmacistFinalDecisionRequestDTO request) {
-        DoctorRecommendationReview review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor review not found with id: " + reviewId));
-        validateReviewAccess(review.getEpisode(), review.getRun());
-
-        PharmacistFinalDecision decision = pharmacistFinalDecisionRepository.findByReviewId(reviewId)
-                .orElse(PharmacistFinalDecision.builder().review(review).build());
-        decision.setSystemicAntibioticPlanJson(request.getSystemicAntibioticPlanJson());
-        decision.setLocalAntibioticPlanJson(request.getLocalAntibioticPlanJson());
-        decision.setSensitivityResultsJson(request.getSensitivityResultsJson());
-        decision.setNotes(request.getNotes());
-        PharmacistFinalDecision savedDecision = pharmacistFinalDecisionRepository.save(decision);
-        review.setPharmacistFinalDecision(savedDecision);
-
-        Map<String, Object> legacy = mergeLegacyPlan(
-                review.getModificationJson(),
-                "systemicAntibiotic",
-                request.getSystemicAntibioticPlanJson());
-        legacy = mergeLegacyPlan(legacy, "localAntibiotic", request.getLocalAntibioticPlanJson());
-        review.setModificationJson(legacy);
-
-        DoctorRecommendationReview saved = reviewRepository.save(review);
-        eagerInit(saved);
-        return saved;
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public com.vietnam.pji.dto.response.DoctorReviewStatsDTO getReviewStats() {
         List<DoctorRecommendationReview> reviews = reviewRepository.findAll();
@@ -332,7 +298,6 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         }
         Hibernate.initialize(review.getRun());
         Hibernate.initialize(review.getDoctorFinalDecision());
-        Hibernate.initialize(review.getPharmacistFinalDecision());
         if (review.getRun() != null) {
             Hibernate.initialize(review.getRun().getEpisode());
             if (review.getRun().getEpisode() != null) {

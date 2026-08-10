@@ -206,10 +206,6 @@ public class DatabaseInitializer implements CommandLineRunner {
                         arrResult.add(new Permission("Select final decision version",
                                         "/api/v1/episodes/{episodeId}/doctor-reviews/{reviewId}/final-decision", "PUT",
                                         "DOCTOR_REVIEWS"));
-                        arrResult.add(new Permission("Save pharmacist final decision",
-                                        "/api/v1/doctor-reviews/{reviewId}/pharmacist-final-decision", "PUT",
-                                        "DOCTOR_REVIEWS"));
-
                         arrResult.add(new Permission("Get my pending lab tasks",
                                         "/api/v1/pending-lab-tasks/my", "GET", "PENDING_LAB_TASKS"));
                         arrResult.add(new Permission("Get my pending lab task count",

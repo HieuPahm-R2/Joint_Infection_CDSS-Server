@@ -71,7 +71,4 @@ public class DoctorRecommendationReview extends AbstractEntity<Long> {
     @OneToOne(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
     private DoctorFinalDecision doctorFinalDecision;
 
-    @OneToOne(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
-    private PharmacistFinalDecision pharmacistFinalDecision;
-
 }
