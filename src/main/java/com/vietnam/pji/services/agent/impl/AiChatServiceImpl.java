@@ -9,6 +9,7 @@ import com.vietnam.pji.dto.request.SendChatMessageRequestDTO;
 import com.vietnam.pji.dto.response.AiChatResponseDTO;
 import com.vietnam.pji.dto.response.PaginationResultDTO;
 import com.vietnam.pji.exception.ResourceNotFoundException;
+import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.model.agentic.*;
 import com.vietnam.pji.repository.*;
 import com.vietnam.pji.repository.ai.AiChatMessageRepository;
@@ -17,6 +18,7 @@ import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.AiChatService;
 import com.vietnam.pji.services.agent.AiServiceClient;
+import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 
 import lombok.RequiredArgsConstructor;
@@ -43,10 +45,18 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiServiceClient aiServiceClient;
     private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
     private final ObjectMapper objectMapper;
+    private final RecommendationAccessService recommendationAccessService;
 
     @Override
     @Transactional
     public AiChatSession createSession(CreateChatSessionRequestDTO request) {
+        if (request.getEpisodeId() != null) {
+            recommendationAccessService.assertCanAccessEpisode(request.getEpisodeId());
+        }
+        if (request.getRunId() != null) {
+            recommendationAccessService.assertCanAccessRun(request.getRunId());
+        }
+
         AiChatSession session = AiChatSession.builder()
                 .chatType(parseChatType(request.getChatType()))
                 .title(request.getTitle())
@@ -63,8 +73,23 @@ public class AiChatServiceImpl implements AiChatService {
         }
 
         if (request.getCurrentItemId() != null) {
-            session.setCurrentItem(itemRepository.findById(request.getCurrentItemId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Item not found")));
+            AiRecommendationItem item = itemRepository.findById(request.getCurrentItemId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
+            if (item.getRun() == null) {
+                throw new ForbiddenException("Recommendation item is not linked to a run");
+            }
+            recommendationAccessService.assertCanAccessRun(item.getRun().getId());
+            session.setCurrentItem(item);
+        }
+
+        if (session.getEpisode() != null && session.getRun() != null
+                && (session.getRun().getEpisode() == null
+                || !session.getEpisode().getId().equals(session.getRun().getEpisode().getId()))) {
+            throw new ForbiddenException("AI recommendation run does not belong to this episode");
+        }
+        if (session.getRun() != null && session.getCurrentItem() != null
+                && !session.getRun().getId().equals(session.getCurrentItem().getRun().getId())) {
+            throw new ForbiddenException("Recommendation item does not belong to this run");
         }
 
         return sessionRepository.save(session);
@@ -75,6 +100,7 @@ public class AiChatServiceImpl implements AiChatService {
     public AiChatMessage sendMessage(Long sessionId, SendChatMessageRequestDTO request) {
         AiChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + sessionId));
+        assertCanAccessSession(session);
 
         // Save user message
         AiChatMessage userMessage = AiChatMessage.builder()
@@ -119,9 +145,9 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     @Transactional(readOnly = true)
     public PaginationResultDTO getMessages(Long sessionId, Pageable pageable) {
-        if (!sessionRepository.existsById(sessionId)) {
-            throw new ResourceNotFoundException("Chat session not found: " + sessionId);
-        }
+        AiChatSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + sessionId));
+        assertCanAccessSession(session);
 
         Page<AiChatMessage> page = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId, pageable);
         page.getContent().forEach(m -> Hibernate.initialize(m.getSession()));
@@ -141,6 +167,7 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     @Transactional(readOnly = true)
     public PaginationResultDTO getSessionsByEpisode(Long episodeId, Pageable pageable) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
@@ -217,6 +244,18 @@ public class AiChatServiceImpl implements AiChatService {
         }
 
         return builder.build();
+    }
+
+    private void assertCanAccessSession(AiChatSession session) {
+        if (session.getRun() != null) {
+            recommendationAccessService.assertCanAccessRun(session.getRun().getId());
+            return;
+        }
+        if (session.getEpisode() != null) {
+            recommendationAccessService.assertCanAccessEpisode(session.getEpisode().getId());
+            return;
+        }
+        throw new ForbiddenException("AI chat session is not linked to a medical record");
     }
 
     private ChatType parseChatType(String chatType) {

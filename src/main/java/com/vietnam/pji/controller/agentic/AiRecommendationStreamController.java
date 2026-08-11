@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.vietnam.pji.services.agent.RecommendationAccessService;
+import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,12 +30,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping("${api.prefix}")
 @Slf4j
+@RequiredArgsConstructor
 @Tag(name = "AI Recommendation Stream", description = "Server-Sent Events stream of AI recommendation progress (thought logs)")
 public class AiRecommendationStreamController {
 
     private static final long SSE_TIMEOUT_MS = 10 * 60 * 1000L; // 10 minutes
 
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final RecommendationAccessService recommendationAccessService;
 
     @GetMapping(value = "/ai-recommendations/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream AI recommendation progress (thought logs) via SSE")
@@ -42,6 +46,7 @@ public class AiRecommendationStreamController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
     public SseEmitter streamRun(@PathVariable Long runId, HttpServletResponse response) {
+        recommendationAccessService.assertCanAccessRun(runId);
         // Stop reverse proxies (nginx / Cloudflare) buffering the event stream —
         // without this the thought-log frames arrive in one batch at the end
         // (or not at all) in deployment, even though they stream fine locally.

@@ -4,6 +4,7 @@ import com.vietnam.pji.dto.request.DoctorRecommendationReviewRequestDTO;
 import com.vietnam.pji.dto.response.ResponseData;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
 import com.vietnam.pji.services.doctor.DoctorRecommendationReviewService;
+import com.vietnam.pji.services.agent.RecommendationAccessService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +24,7 @@ import java.util.List;
 public class DoctorRecommendationReviewController {
 
     private final DoctorRecommendationReviewService reviewService;
+    private final RecommendationAccessService recommendationAccessService;
 
     @PostMapping("/episodes/{episodeId}/doctor-reviews")
     @ResponseStatus(HttpStatus.CREATED)
@@ -38,6 +40,7 @@ public class DoctorRecommendationReviewController {
     @GetMapping("/ai-recommendations/runs/{runId}/review")
     @Operation(summary = "Get doctor review for a specific AI recommendation run")
     public ResponseData<DoctorRecommendationReview> getReviewByRunId(@PathVariable Long runId) {
+        recommendationAccessService.assertCanAccessRun(runId);
         return new ResponseData<>(HttpStatus.OK.value(),
                 "Fetch review successfully",
                 reviewService.getReviewByRunId(runId));
@@ -46,6 +49,7 @@ public class DoctorRecommendationReviewController {
     @GetMapping("/episodes/{episodeId}/doctor-reviews")
     @Operation(summary = "Get all doctor reviews for an episode")
     public ResponseData<List<DoctorRecommendationReview>> getReviewsByEpisode(@PathVariable Long episodeId) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         return new ResponseData<>(HttpStatus.OK.value(),
                 "Fetch reviews successfully",
                 reviewService.getReviewsByEpisodeId(episodeId));
@@ -54,6 +58,7 @@ public class DoctorRecommendationReviewController {
     @GetMapping("/episodes/{episodeId}/doctor-reviews/final-decision")
     @Operation(summary = "Get the selected final recommendation version for an episode")
     public ResponseData<DoctorRecommendationReview> getFinalDecision(@PathVariable Long episodeId) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         return new ResponseData<>(HttpStatus.OK.value(),
                 "Fetch final decision successfully",
                 reviewService.getFinalDecisionByEpisodeId(episodeId));
@@ -64,6 +69,7 @@ public class DoctorRecommendationReviewController {
     public ResponseData<DoctorRecommendationReview> selectFinalDecision(
             @PathVariable Long episodeId,
             @PathVariable Long reviewId) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         return new ResponseData<>(HttpStatus.OK.value(),
                 "Final decision version selected successfully",
                 reviewService.selectFinalDecision(episodeId, reviewId));

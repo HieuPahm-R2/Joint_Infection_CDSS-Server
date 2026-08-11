@@ -20,6 +20,7 @@ import com.vietnam.pji.dto.request.RuleBasedDiagnosisDTO;
 import com.vietnam.pji.message.RabbitMQPublisher;
 import com.vietnam.pji.services.agent.AiRecommendationService;
 import com.vietnam.pji.services.agent.AiServiceClient;
+import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
@@ -55,9 +56,11 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final ObjectMapper objectMapper;
     private final RedisService redisService;
     private final AiRecommendationRunMapper runMapper;
+    private final RecommendationAccessService recommendationAccessService;
 
     @Override
     public AiRecommendationRunDetailDTO generateRecommendation(Long episodeId, TriggerType triggerType) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
@@ -98,6 +101,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     public AiRecommendationRunDetailDTO generateRecommendationAsync(Long episodeId, TriggerType triggerType) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
@@ -133,6 +137,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     public PjiDiagnosticRuleEngine.DiagnosticResult evaluateRuleBasedDiagnostic(Long episodeId) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
@@ -359,6 +364,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     @Override
     @Transactional(readOnly = true)
     public AiRecommendationRunDetailDTO getRunDetail(Long runId) {
+        recommendationAccessService.assertCanAccessRun(runId);
         // Check cache for terminal runs
         try {
             String cached = redisService.getCachedRunDetail(runId);
@@ -449,6 +455,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     @Override
     @Transactional(readOnly = true)
     public PaginationResultDTO getRunHistory(Long episodeId, Pageable pageable) {
+        recommendationAccessService.assertCanAccessEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
@@ -476,6 +483,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     public AiRecommendationRunDetailDTO retryRun(Long runId) {
+        recommendationAccessService.assertCanAccessRun(runId);
         AiRecommendationRun existingRun = runRepository.findById(runId)
                 .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
 
