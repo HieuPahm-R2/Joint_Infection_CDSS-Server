@@ -53,16 +53,6 @@ public class DoctorRecommendationReview extends AbstractEntity<Long> {
     @Column(name = "doctor_diagnosis_json", columnDefinition = "jsonb")
     private Map<String, Object> doctorDiagnosisJson;
 
-    /**
-     * Per-criterion AI-vs-doctor agreement (booleans) plus an overall
-     * agreement_rate (0-100), computed at save time. Drives the comparison
-     * table, consensus statistics, and future model learning from the
-     * doctor's final word.
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "agreement_json", columnDefinition = "jsonb")
-    private Map<String, Object> agreementJson;
-
     /** Exactly one review version per episode may be the signed final version. */
     @Column(name = "is_final_decision", nullable = false)
     @Builder.Default

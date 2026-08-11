@@ -66,7 +66,6 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
 
         review.setModificationJson(request.getModificationJson());
         review.setDoctorDiagnosisJson(request.getDoctorDiagnosisJson());
-        review.setAgreementJson(request.getAgreementJson());
 
         DoctorRecommendationReview saved = reviewRepository.save(review);
         upsertDoctorFinalDecision(saved, request);
@@ -210,85 +209,6 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         DoctorRecommendationReview saved = reviewRepository.save(review);
         eagerInit(saved);
         return saved;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public com.vietnam.pji.dto.response.DoctorReviewStatsDTO getReviewStats() {
-        List<DoctorRecommendationReview> reviews = reviewRepository.findAll();
-
-        long accepted = countByStatus(reviews, ReviewStatus.ACCEPTED);
-        long modified = countByStatus(reviews, ReviewStatus.MODIFIED);
-        long rejected = countByStatus(reviews, ReviewStatus.REJECTED);
-        long savedDraft = countByStatus(reviews, ReviewStatus.SAVED_DRAFT);
-        long decided = accepted + modified + rejected;
-
-        Double consensusRate = decided > 0
-                ? Math.round(accepted * 1000.0 / decided) / 10.0
-                : null;
-
-        // Average per-criterion agreement across reviews that carry one.
-        double sum = 0;
-        int withAgreement = 0;
-        for (DoctorRecommendationReview r : reviews) {
-            Double rate = extractAgreementRate(r);
-            if (rate != null) {
-                sum += rate;
-                withAgreement++;
-            }
-        }
-        Double avgAgreementRate = withAgreement > 0
-                ? Math.round(sum * 10.0 / withAgreement) / 10.0
-                : null;
-
-        List<com.vietnam.pji.dto.response.DoctorReviewStatsDTO.OverriddenCaseDTO> overridden = reviews.stream()
-                .filter(r -> r.getReviewStatus() == ReviewStatus.MODIFIED
-                        || r.getReviewStatus() == ReviewStatus.REJECTED)
-                .sorted((a, b) -> {
-                    java.util.Date ua = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
-                    java.util.Date ub = b.getUpdatedAt() != null ? b.getUpdatedAt() : b.getCreatedAt();
-                    if (ua == null || ub == null)
-                        return 0;
-                    return ub.compareTo(ua);
-                })
-                .map(r -> com.vietnam.pji.dto.response.DoctorReviewStatsDTO.OverriddenCaseDTO.builder()
-                        .reviewId(r.getId())
-                        .episodeId(r.getEpisode() != null ? r.getEpisode().getId() : null)
-                        .runId(r.getRun() != null ? r.getRun().getId() : null)
-                        .patientName(r.getEpisode() != null && r.getEpisode().getPatient() != null
-                                ? r.getEpisode().getPatient().getFullName()
-                                : null)
-                        .reviewStatus(r.getReviewStatus() != null ? r.getReviewStatus().name() : null)
-                        .agreementRate(extractAgreementRate(r))
-                        .reviewNote(r.getReviewNote())
-                        .updatedAt(r.getUpdatedAt() != null ? r.getUpdatedAt() : r.getCreatedAt())
-                        .build())
-                .toList();
-
-        return com.vietnam.pji.dto.response.DoctorReviewStatsDTO.builder()
-                .totalReviews(reviews.size())
-                .accepted(accepted)
-                .modified(modified)
-                .rejected(rejected)
-                .savedDraft(savedDraft)
-                .consensusRate(consensusRate)
-                .avgAgreementRate(avgAgreementRate)
-                .overriddenCases(overridden)
-                .build();
-    }
-
-    private long countByStatus(List<DoctorRecommendationReview> reviews, ReviewStatus status) {
-        return reviews.stream().filter(r -> r.getReviewStatus() == status).count();
-    }
-
-    private Double extractAgreementRate(DoctorRecommendationReview review) {
-        if (review.getAgreementJson() == null)
-            return null;
-        Object rate = review.getAgreementJson().get("agreement_rate");
-        if (rate instanceof Number n) {
-            return n.doubleValue();
-        }
-        return null;
     }
 
     private void eagerInit(DoctorRecommendationReview review) {
