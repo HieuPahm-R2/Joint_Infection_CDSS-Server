@@ -9,8 +9,10 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -20,6 +22,9 @@ import java.util.List;
 @Entity
 @Table(name = "pji_episodes")
 public class PjiEpisode extends AbstractEntity<Long> {
+
+    @Column(name = "medical_record_code", nullable = false, unique = true, length = 14, updatable = false)
+    private String medicalRecordCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "patient_id")
@@ -115,4 +120,22 @@ public class PjiEpisode extends AbstractEntity<Long> {
 
     @Column(name = "status", length = 100)
     private String status;
+
+    @Override
+    protected void handleBeforeCreate() {
+        super.handleBeforeCreate();
+        generateMedicalRecordCode();
+    }
+
+    public void generateMedicalRecordCode() {
+        if (medicalRecordCode == null || medicalRecordCode.isBlank()) {
+            String year = String.valueOf(Year.now().getValue()).substring(2);
+            String randomPart = UUID.randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .substring(0, 10)
+                    .toUpperCase();
+            medicalRecordCode = "BA" + year + randomPart;
+        }
+    }
 }
