@@ -142,9 +142,6 @@ public class RabbitMQConsumer {
             run.setModelVersion(result.getModel().getVersion());
         }
 
-        preserveRuleBasedDiagnosisRunFields(run, result.getAssessmentJson(),
-                result.getExplanationJson(), result.getWarningsJson());
-
         // Store data completeness on the run for frontend display
         if (result.getDataCompleteness() != null) {
             run.setDataCompletenessJson(result.getDataCompleteness());
@@ -171,9 +168,7 @@ public class RabbitMQConsumer {
                 return;
             }
             ItemCategory category = parseCategory(itemDTO.getCategory());
-            if (category == ItemCategory.DIAGNOSTIC_TEST) {
-                log.debug("Skipping AI DIAGNOSTIC_TEST item for runId={} because backend rule engine owns diagnosis",
-                        run.getId());
+            if (category == null) {
                 continue;
             }
 
@@ -268,22 +263,6 @@ public class RabbitMQConsumer {
         return run.getStatus() == RunStatus.CANCELLED || redisService.isRunCancelled(run.getId());
     }
 
-    private void preserveRuleBasedDiagnosisRunFields(
-            AiRecommendationRun run,
-            Map<String, Object> aiAssessmentJson,
-            Map<String, Object> aiExplanationJson,
-            List<Map<String, Object>> aiWarningsJson) {
-        if (run.getAssessmentJson() == null || run.getAssessmentJson().isEmpty()) {
-            run.setAssessmentJson(aiAssessmentJson);
-        }
-        if (run.getExplanationJson() == null || run.getExplanationJson().isEmpty()) {
-            run.setExplanationJson(aiExplanationJson);
-        }
-        if (run.getWarningsJson() == null || run.getWarningsJson().isEmpty()) {
-            run.setWarningsJson(aiWarningsJson);
-        }
-    }
-
     /**
      * Create a Notification row for the user who started the run, so the badge
      * + dropdown in the UI can show it even after they navigated away. The
@@ -297,34 +276,53 @@ public class RabbitMQConsumer {
         }
 
         Long episodeId = null;
+        String patientName = "Bệnh nhân";
+        String medicalRecordCode = null;
         try {
-            episodeId = run.getEpisode() != null ? run.getEpisode().getId() : null;
+            if (run.getEpisode() != null) {
+                episodeId = run.getEpisode().getId();
+                medicalRecordCode = run.getEpisode().getMedicalRecordCode();
+                if (run.getEpisode().getPatient() != null && run.getEpisode().getPatient().getFullName() != null) {
+                    patientName = run.getEpisode().getPatient().getFullName();
+                }
+            }
         } catch (Exception e) {
-            log.debug("Failed to read episode id for run {}: {}", run.getId(), e.getMessage());
+            log.debug("Failed to read episode/patient info for run {}: {}", run.getId(), e.getMessage());
         }
 
+        String recordDisplay = medicalRecordCode != null && !medicalRecordCode.isBlank()
+                ? medicalRecordCode
+                : (episodeId != null ? "#" + episodeId : "");
         String linkUrl = "/?runId=" + run.getId()
                 + (episodeId != null ? "&episodeId=" + episodeId : "");
         try {
             if (success) {
+                String title = "Phân tích PJI hoàn tất - " + patientName;
+                String message = "Khuyến nghị phác đồ AI cho bệnh nhân " + patientName
+                        + (!recordDisplay.isBlank() ? " (Bệnh án " + recordDisplay + ")" : "")
+                        + " đã hoàn tất và sẵn sàng để xem.";
                 notificationService.create(
                         userId,
                         NotificationType.AI_RECOMMENDATION_DONE,
                         NotificationSeverity.SUCCESS,
-                        "Phân tích PJI hoàn tất",
-                        "Khuyến nghị AI cho ca lâm sàng đã sẵn sàng để xem.",
+                        title,
+                        message,
                         String.valueOf(run.getId()),
                         linkUrl);
             } else {
                 String msg = errorMessage != null && !errorMessage.isBlank()
                         ? errorMessage
                         : "Phân tích AI thất bại. Vui lòng thử lại.";
+                String title = "Phân tích PJI thất bại - " + patientName;
+                String message = "Quá trình sinh phác đồ AI cho bệnh nhân " + patientName
+                        + (!recordDisplay.isBlank() ? " (Bệnh án " + recordDisplay + ")" : "")
+                        + " thất bại: " + msg;
                 notificationService.create(
                         userId,
                         NotificationType.AI_RECOMMENDATION_FAILED,
                         NotificationSeverity.ERROR,
-                        "Phân tích PJI thất bại",
-                        msg,
+                        title,
+                        message,
                         String.valueOf(run.getId()),
                         linkUrl);
             }
@@ -338,8 +336,8 @@ public class RabbitMQConsumer {
         try {
             return ItemCategory.valueOf(category);
         } catch (Exception e) {
-            log.warn("Unknown item category: {}", category);
-            return ItemCategory.DIAGNOSTIC_TEST;
+            log.warn("Ignoring unsupported recommendation item category: {}", category);
+            return null;
         }
     }
 
