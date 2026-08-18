@@ -6,6 +6,8 @@ import com.vietnam.pji.dto.response.NotificationResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
+
 public interface NotificationService {
 
     /**
@@ -27,4 +29,6 @@ public interface NotificationService {
     boolean markRead(Long userId, Long notificationId);
 
     int markAllRead(Long userId);
+
+    int delete(Long userId, Collection<Long> notificationIds);
 }

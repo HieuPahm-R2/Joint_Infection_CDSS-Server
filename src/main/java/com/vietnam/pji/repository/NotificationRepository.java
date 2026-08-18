@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
@@ -31,4 +32,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("UPDATE Notification n SET n.isRead = true, n.readAt = :readAt "
             + "WHERE n.user.id = :userId AND n.isRead = false")
     int markAllRead(@Param("userId") Long userId, @Param("readAt") Instant readAt);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.id IN :ids AND n.user.id = :userId")
+    int deleteByIdsAndUserId(@Param("ids") Collection<Long> ids, @Param("userId") Long userId);
 }
