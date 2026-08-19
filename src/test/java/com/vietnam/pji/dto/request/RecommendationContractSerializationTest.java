@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +30,7 @@ class RecommendationContractSerializationTest {
         assertThat(json.has("prior_accepted_diagnoses")).isFalse();
         assertThat(json.path("rule_based_diagnosis").path("assessment_json")
                 .path("pji_probability").asText()).isEqualTo("DEFINITE");
+        assertThat(json.path("rule_based_diagnosis").has("warnings_json")).isFalse();
     }
 
     @Test
@@ -54,8 +54,7 @@ class RecommendationContractSerializationTest {
                 "Rule diagnosis",
                 Map.of("result", "DEFINITE"),
                 Map.of("pji_probability", "DEFINITE"),
-                Map.of("clinical_reasoning", "Major criterion met"),
-                List.of());
+                Map.of("clinical_reasoning", "Major criterion met"));
         return RuleBasedDiagnosisDTO.from(result);
     }
 }

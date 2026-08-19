@@ -35,11 +35,12 @@ public class PjiDiagnosticRuleEngine {
         List<PjiDiagnosticCriteriaEvaluator.CriterionScore> scores = criteriaEvaluator.evaluateMinorCriteria(safeSnapshot, culture);
         int totalMinorScore = scores.stream().mapToInt(PjiDiagnosticCriteriaEvaluator.CriterionScore::scoreAwarded).sum();
         String interpretation = reportBuilder.interpret(majorCriteriaMet, totalMinorScore);
-        return reportBuilder.build(safeSnapshot, culture, sinus, scores, majorCriteriaMet, totalMinorScore, interpretation);
+        String infectionClassification = criteriaEvaluator.infectionClassification(safeSnapshot);
+        return reportBuilder.build(safeSnapshot, culture, sinus, scores, majorCriteriaMet, totalMinorScore,
+                interpretation, infectionClassification);
     }
 
     public record DiagnosticResult(String title, Map<String, Object> itemJson,
-            Map<String, Object> assessmentJson, Map<String, Object> explanationJson,
-            List<Map<String, Object>> warningsJson) {
+            Map<String, Object> assessmentJson, Map<String, Object> explanationJson) {
     }
 }

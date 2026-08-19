@@ -15,6 +15,7 @@ import com.vietnam.pji.repository.*;
 import com.vietnam.pji.repository.ai.AiRagCitationRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
+import com.vietnam.pji.repository.ai.RuleBasedDiagnosticResultRepository;
 import com.vietnam.pji.dto.request.RabbitMQRecommendationMessage;
 import com.vietnam.pji.dto.request.RuleBasedDiagnosisDTO;
 import com.vietnam.pji.message.RabbitMQPublisher;
@@ -34,7 +35,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 import java.util.*;
 
 @Slf4j
@@ -49,6 +49,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final AiRecommendationRunRepository runRepository;
     private final AiRecommendationItemRepository itemRepository;
     private final AiRagCitationRepository citationRepository;
+    private final RuleBasedDiagnosticResultRepository diagnosticResultRepository;
     private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
     private final AiServiceClient aiServiceClient;
     private final RabbitMQPublisher rabbitMQPublisher;
@@ -71,7 +72,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
         saveRuleBasedDiagnostic(run.getId(), diagnostic);
-        run = runRepository.findById(run.getId()).orElse(run);
 
         String requestId = run.getRequestId();
 
@@ -111,8 +111,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         AiRecommendationRun run = createRun(episode, snapshot, triggerType);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
-        AiRecommendationItem diagnosticItem = saveRuleBasedDiagnostic(run.getId(), diagnostic);
-        run = runRepository.findById(run.getId()).orElse(run);
+        saveRuleBasedDiagnostic(run.getId(), diagnostic);
 
         // Publish to RabbitMQ — Python worker will process asynchronously
         RabbitMQRecommendationMessage message = RabbitMQRecommendationMessage.builder()
@@ -132,7 +131,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 run.getRequestId(), run.getId(), episodeId);
 
         // Return immediately with PROCESSING status — client polls GET /runs/{runId}
-        return toRunDetailDto(run, List.of(diagnosticItem), Collections.emptyList());
+        return toRunDetailDto(run, Collections.emptyList(), Collections.emptyList());
     }
 
     @Override
@@ -184,45 +183,20 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     }
 
     @Transactional
-    protected AiRecommendationItem saveRuleBasedDiagnostic(
+    protected RuleBasedDiagnosticResult saveRuleBasedDiagnostic(
             Long runId,
             PjiDiagnosticRuleEngine.DiagnosticResult diagnostic) {
         AiRecommendationRun run = runRepository.findById(runId)
                 .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
 
-        run.setAssessmentJson(diagnostic.assessmentJson());
-        run.setExplanationJson(diagnostic.explanationJson());
-        run.setWarningsJson(diagnostic.warningsJson());
-        runRepository.save(run);
-
-        AiRecommendationItem item = AiRecommendationItem.builder()
+        RuleBasedDiagnosticResult result = RuleBasedDiagnosticResult.builder()
                 .run(run)
-                .category(ItemCategory.DIAGNOSTIC_TEST)
                 .title(diagnostic.title())
-                .priorityOrder(1)
-                .isPrimary(true)
+                .itemJson(diagnostic.itemJson())
+                .assessmentJson(diagnostic.assessmentJson())
+                .explanationJson(diagnostic.explanationJson())
                 .build();
-
-        try {
-            item.setItemJson(objectMapper.writeValueAsString(diagnostic.itemJson()));
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize rule-based diagnostic item for runId={}", runId);
-        }
-
-        AiRecommendationItem saved = itemRepository.save(item);
-
-        citationRepository.save(AiRagCitation.builder()
-                .run(run)
-                .item(saved)
-                .sourceType(SourceType.CONSENSUS_STATEMENT)
-                .sourceTitle("International Consensus Meeting 2025 and ICM PJI diagnostic criteria")
-                .sourceUri("ICM2025.pdf")
-                .snippet("Backend rule engine applies decisive major criteria and ICM-style minor scoring; missing criteria are not inferred.")
-                .relevanceScore(BigDecimal.valueOf(0.9900))
-                .citedFor("Rule-based DIAGNOSTIC_TEST generation")
-                .build());
-
-        return saved;
+        return diagnosticResultRepository.save(result);
     }
 
     @Transactional
@@ -258,23 +232,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             run.setModelVersion(response.getModel().getVersion());
         }
         run.setLatencyMs(response.getLatencyMs());
-        preserveRuleBasedDiagnosisRunFields(run, response.getAssessmentJson(),
-                response.getExplanationJson(), response.getWarningsJson());
-
-        // try {
-        // if (response.getAssessmentJson() != null) {
-        // run.setAssessmentJson(objectMapper.writeValueAsString(response.getAssessmentJson()));
-        // }
-        // if (response.getExplanationJson() != null) {
-        // run.setExplanationJson(objectMapper.writeValueAsString(response.getExplanationJson()));
-        // }
-        // if (response.getWarningsJson() != null) {
-        // run.setWarningsJson(objectMapper.writeValueAsString(response.getWarningsJson()));
-        // }
-        // } catch (JsonProcessingException e) {
-        // log.warn("Failed to serialize AI response JSON fields", e);
-        // }
-
         runRepository.save(run);
 
         // Save items
@@ -283,8 +240,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
         for (AiRecommendationGenerateResponseDTO.ItemDTO itemDTO : response.getItems()) {
             ItemCategory category = parseCategory(itemDTO.getCategory());
-            if (category == ItemCategory.DIAGNOSTIC_TEST) {
-                log.debug("Skipping AI DIAGNOSTIC_TEST item for runId={} because backend rule engine owns diagnosis", runId);
+            if (category == null) {
                 continue;
             }
             AiRecommendationItem item = AiRecommendationItem.builder()
@@ -345,22 +301,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         return toRunDetailDto(run, allItems, allCitations);
     }
 
-    private void preserveRuleBasedDiagnosisRunFields(
-            AiRecommendationRun run,
-            Map<String, Object> aiAssessmentJson,
-            Map<String, Object> aiExplanationJson,
-            List<Map<String, Object>> aiWarningsJson) {
-        if (run.getAssessmentJson() == null || run.getAssessmentJson().isEmpty()) {
-            run.setAssessmentJson(aiAssessmentJson);
-        }
-        if (run.getExplanationJson() == null || run.getExplanationJson().isEmpty()) {
-            run.setExplanationJson(aiExplanationJson);
-        }
-        if (run.getWarningsJson() == null || run.getWarningsJson().isEmpty()) {
-            run.setWarningsJson(aiWarningsJson);
-        }
-    }
-
     @Override
     @Transactional(readOnly = true)
     public AiRecommendationRunDetailDTO getRunDetail(Long runId) {
@@ -408,8 +348,23 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             List<AiRagCitation> citations) {
         return AiRecommendationRunDetailDTO.builder()
                 .run(runMapper.toDto(run))
+                .diagnostic(diagnosticResultRepository.findByRunId(run.getId())
+                        .map(this::toDiagnosticDto)
+                        .orElse(null))
                 .items(items == null ? Collections.emptyList() : items.stream().map(this::toItemDto).toList())
                 .citations(citations == null ? Collections.emptyList() : citations.stream().map(this::toCitationDto).toList())
+                .build();
+    }
+
+    private AiRecommendationRunDetailDTO.DiagnosticDTO toDiagnosticDto(RuleBasedDiagnosticResult diagnostic) {
+        return AiRecommendationRunDetailDTO.DiagnosticDTO.builder()
+                .id(diagnostic.getId())
+                .title(diagnostic.getTitle())
+                .itemJson(diagnostic.getItemJson())
+                .assessmentJson(diagnostic.getAssessmentJson())
+                .explanationJson(diagnostic.getExplanationJson())
+                .createdAt(diagnostic.getCreatedAt())
+                .updatedAt(diagnostic.getUpdatedAt())
                 .build();
     }
 
@@ -556,8 +511,8 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         try {
             return ItemCategory.valueOf(category);
         } catch (Exception e) {
-            log.warn("Unknown item category: {}", category);
-            return ItemCategory.DIAGNOSTIC_TEST;
+            log.warn("Ignoring unsupported recommendation item category: {}", category);
+            return null;
         }
     }
 

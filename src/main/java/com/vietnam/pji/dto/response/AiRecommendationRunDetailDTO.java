@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Date;
+import java.util.Map;
 import java.util.List;
 
 @Data
@@ -16,6 +18,7 @@ import java.util.List;
 public class AiRecommendationRunDetailDTO implements Serializable {
 
     private AiRecommendationRunDTO run;
+    private DiagnosticDTO diagnostic;
     private List<ItemDTO> items;
     private List<CitationDTO> citations;
 
@@ -32,6 +35,20 @@ public class AiRecommendationRunDetailDTO implements Serializable {
         private Object itemJson;
         private String createdBy;
         private String updatedBy;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DiagnosticDTO implements Serializable {
+        private Long id;
+        private String title;
+        private Map<String, Object> itemJson;
+        private Map<String, Object> assessmentJson;
+        private Map<String, Object> explanationJson;
+        private Date createdAt;
+        private Date updatedAt;
     }
 
     @Data

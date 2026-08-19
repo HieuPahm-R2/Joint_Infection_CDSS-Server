@@ -131,6 +131,10 @@ class PjiDiagnosticCriteriaEvaluator {
                 .contains(normalized) ? ClinicalPhase.ACUTE : ClinicalPhase.CHRONIC;
     }
 
+    String infectionClassification(Map<String, Object> snapshot) {
+        return clinicalPhase(snapshot).name();
+    }
+
     private CriterionScore evaluateSinglePositiveCulture(PjiCultureEvidenceEvaluator.CultureEvidence culture) {
         Boolean result = culture.positiveCount() > 0 && !culture.majorCriteriaMet();
         String detail;

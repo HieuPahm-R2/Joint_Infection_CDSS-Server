@@ -41,6 +41,7 @@ class PjiDiagnosticRuleEngineTest {
         Map<String, Object> identifiedOrganism = map(reasoning.get("identified_organism"));
 
         assertEquals("INFECTED", scoringSystem.get("interpretation"));
+        assertEquals("Nhiễm trùng khớp nhân tạo (PJI)", scoringSystem.get("interpretation_label"));
         assertEquals(7, scoringSystem.get("total_score"));
         assertTrue((Boolean) majorCriteria.get("major_criteria_met"));
         assertEquals("Staphylococcus aureus", identifiedOrganism.get("name"));
@@ -70,12 +71,20 @@ class PjiDiagnosticRuleEngineTest {
                 "alpha_defensin", Map.of("value", 0.5));
 
         PjiDiagnosticRuleEngine.DiagnosticResult acute = engine.evaluate(Map.of(
-                "clinical_records", Map.of("infection_assessment", Map.of("onset_timing", "EARLY")),
+                "clinical_records", Map.of(
+                        "symptoms", Map.of("sinus_tract", true),
+                        "infection_assessment", Map.of("onset_timing", "EARLY")),
                 "lab_results", labs));
         PjiDiagnosticRuleEngine.DiagnosticResult chronic = engine.evaluate(Map.of("lab_results", labs));
 
         assertEquals(0, map(acute.itemJson().get("scoring_system")).get("total_score"));
         assertEquals(8, map(chronic.itemJson().get("scoring_system")).get("total_score"));
+        assertEquals("ACUTE", map(acute.itemJson().get("ai_reasoning")).get("infection_classification"));
+        assertEquals("CHRONIC", map(chronic.itemJson().get("ai_reasoning")).get("infection_classification"));
+        assertTrue(map(acute.itemJson().get("ai_reasoning")).get("primary_diagnosis").toString()
+                .contains("cấp tính"));
+        assertTrue(map(chronic.itemJson().get("ai_reasoning")).get("primary_diagnosis").toString()
+                .contains("mạn tính"));
     }
 
     @Test
@@ -98,6 +107,7 @@ class PjiDiagnosticRuleEngineTest {
 
         assertEquals(16, minor.get("total_minor_score"));
         assertEquals(16, items.stream().mapToInt(item -> (Integer) item.get("score_weight")).sum());
+        assertTrue(minor.get("total_minor_score_note").toString().startsWith("16/16 điểm tiêu chí phụ"));
         assertEquals(7, items.size());
     }
 
@@ -129,20 +139,22 @@ class PjiDiagnosticRuleEngineTest {
     void evaluateUsesOnsetTimingAndSuspectedTransmissionRoute() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
                 "clinical_records", Map.of(
-                        "symptoms", Map.of("sinus_tract", false),
+                        "symptoms", Map.of("sinus_tract", true),
                         "infection_assessment", Map.of(
                                 "onset_timing", "DELAYED_SUBACUTE",
                                 "suspected_transmission_route", "CONTIGUOUS_SPREAD"))));
 
         Map<String, Object> reasoning = map(result.itemJson().get("ai_reasoning"));
 
-        assertEquals("DELAYED_SUBACUTE", reasoning.get("infection_classification"));
+        assertEquals("CHRONIC", reasoning.get("infection_classification"));
+        assertTrue(reasoning.get("infection_classification_reasoning").toString()
+                .contains("DELAYED_SUBACUTE"));
         assertTrue(reasoning.get("infection_classification_reasoning").toString()
                 .contains("CONTIGUOUS_SPREAD"));
     }
 
     @Test
-    void evaluateRetainsCultureResistanceAndDataQualityWarnings() {
+    void evaluateRetainsCultureResistanceWithoutWarningPayload() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
                 "culture_results", Map.of("items", List.of(
                         Map.of(
@@ -160,8 +172,34 @@ class PjiDiagnosticRuleEngineTest {
         Map<String, Object> identifiedOrganism = map(reasoning.get("identified_organism"));
 
         assertEquals("MRSA", identifiedOrganism.get("resistance_profile"));
-        assertTrue(result.warningsJson().stream()
-                .anyMatch(warning -> "DATA_QUALITY".equals(warning.get("type"))));
+        assertFalse(reasoning.containsKey("warnings"));
+    }
+
+    @Test
+    void evaluateDoesNotEstimateDataCompletenessOrClassifyNonInfectedCases() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of());
+
+        Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
+        Map<String, Object> reasoning = map(result.itemJson().get("ai_reasoning"));
+
+        assertEquals("NOT_INFECTED", scoring.get("interpretation"));
+        assertEquals("Không có bằng chứng nhiễm trùng khớp nhân tạo (PJI)", scoring.get("interpretation_label"));
+        assertEquals("Điểm tiêu chí phụ ≤3, chưa ủng hộ PJI theo dữ liệu hiện có.", scoring.get("confidence_note"));
+        assertEquals("NOT_APPLICABLE", reasoning.get("infection_classification"));
+        assertFalse(reasoning.containsKey("warnings"));
+    }
+
+    @Test
+    void evaluateLocalizesInconclusiveConclusion() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
+                "lab_results", Map.of("crp", Map.of("value", 11, "unit", "mg/L")),
+                "culture_results", Map.of("items", List.of(
+                        Map.of("organism_name", "Staphylococcus epidermidis", "result_status", "POSITIVE")))));
+
+        Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
+
+        assertEquals("INCONCLUSIVE", scoring.get("interpretation"));
+        assertEquals("Chưa kết luận được nhiễm trùng khớp nhân tạo (PJI)", scoring.get("interpretation_label"));
     }
 
     @SuppressWarnings("unchecked")

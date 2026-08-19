@@ -21,7 +21,7 @@ public class RedisServiceImpl implements RedisService {
     private static final String ACCESS_TOKEN_BLACKLIST_KEY_PREFIX = "access_token_blacklist:";
     private static final String USER_PERMISSIONS_KEY_PREFIX = "user_permissions:";
     private static final String SNAPSHOT_KEY_PREFIX = "snapshot:";
-    private static final String RUN_DETAIL_KEY_PREFIX = "run_detail:";
+    private static final String RUN_DETAIL_KEY_PREFIX = "run_detail:v2:";
     private static final String ACTIVE_SESSION_KEY_PREFIX = "auth:active_session:";
     private static final String CANCEL_RUN_KEY_PREFIX = "cancel:run:";
 

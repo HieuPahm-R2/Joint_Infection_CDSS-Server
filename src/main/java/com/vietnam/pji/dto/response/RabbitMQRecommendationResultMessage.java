@@ -37,15 +37,6 @@ public class RabbitMQRecommendationResultMessage implements Serializable {
     @JsonProperty("latency_ms")
     private Long latencyMs;
 
-    @JsonProperty("assessment_json")
-    private Map<String, Object> assessmentJson;
-
-    @JsonProperty("explanation_json")
-    private Map<String, Object> explanationJson;
-
-    @JsonProperty("warnings_json")
-    private List<Map<String, Object>> warningsJson;
-
     private List<ItemDTO> items;
 
     private List<CitationDTO> citations;

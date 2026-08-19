@@ -8,7 +8,6 @@ import com.vietnam.pji.model.medical.PjiEpisode;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.List;
 import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -62,18 +61,6 @@ public class AiRecommendationRun extends AbstractEntity<Long> {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "data_completeness_json", columnDefinition = "jsonb")
     private Map<String, Object> dataCompletenessJson;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "assessment_json", columnDefinition = "jsonb")
-    private Map<String, Object> assessmentJson;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "explanation_json", columnDefinition = "jsonb")
-    private Map<String, Object> explanationJson;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "warnings_json", columnDefinition = "jsonb")
-    private List<Map<String, Object>> warningsJson;
 
     @Column(name = "created_by_user_id")
     private Long createdByUserId;

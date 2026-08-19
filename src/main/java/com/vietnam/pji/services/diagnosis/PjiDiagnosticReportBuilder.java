@@ -16,6 +16,7 @@ class PjiDiagnosticReportBuilder {
 
     private static final int INFECTED_SCORE_THRESHOLD = 6;
     private static final int INCONCLUSIVE_SCORE_MIN = 4;
+    private static final int MAX_MINOR_SCORE = 16;
 
     private final PjiDiagnosticSnapshotReader snapshotReader;
 
@@ -34,25 +35,26 @@ class PjiDiagnosticReportBuilder {
             PjiCultureEvidenceEvaluator.CultureEvidence culture,
             PjiDiagnosticCriteriaEvaluator.MajorCriterion sinus,
             List<PjiDiagnosticCriteriaEvaluator.CriterionScore> scores,
-            boolean majorCriteriaMet, int totalMinorScore, String interpretation) {
-        List<Map<String, Object>> warnings = buildWarnings(snapshot, culture, scores);
+            boolean majorCriteriaMet, int totalMinorScore, String interpretation, String clinicalPhase) {
+        String infectionClassification = infectionClassification(interpretation, clinicalPhase);
         Map<String, Object> majorCriteria = majorCriteria(culture, sinus, majorCriteriaMet);
         Map<String, Object> minorCriteria = minorCriteria(scores, totalMinorScore, majorCriteriaMet);
 
         Map<String, Object> scoringSystem = new LinkedHashMap<>();
-        scoringSystem.put("name", "ICM PJI Diagnostic Criteria");
-        scoringSystem.put("version", "Rule-based backend calculation (ICM 2018 score, ICM 2025 diagnostic-process safeguards)");
+        scoringSystem.put("name", "Tiêu chí chẩn đoán PJI theo ICM");
+        scoringSystem.put("version", "Tính theo quy tắc tại Backend (điểm ICM 2018, biện pháp bảo đảm quy trình chẩn đoán ICM 2025)");
         scoringSystem.put("total_score", totalMinorScore);
         scoringSystem.put("interpretation", interpretation);
-        scoringSystem.put("confidence_note", confidenceNote(majorCriteriaMet, totalMinorScore, missingCount(scores)));
+        scoringSystem.put("interpretation_label", interpretationLabel(interpretation));
+        scoringSystem.put("confidence_note", confidenceNote(majorCriteriaMet, totalMinorScore));
 
         Map<String, Object> aiReasoning = new LinkedHashMap<>();
-        aiReasoning.put("primary_diagnosis", primaryDiagnosis(snapshot, interpretation));
-        aiReasoning.put("infection_classification", infectionClassification(snapshot));
-        aiReasoning.put("infection_classification_reasoning", infectionClassificationReasoning(snapshot));
+        aiReasoning.put("primary_diagnosis", primaryDiagnosis(snapshot, interpretation, infectionClassification));
+        aiReasoning.put("infection_classification", infectionClassification);
+        aiReasoning.put("infection_classification_reasoning",
+                infectionClassificationReasoning(snapshot, interpretation, infectionClassification));
         aiReasoning.put("identified_organism", identifiedOrganism(culture));
         aiReasoning.put("reasoning_summary", reasoningSummary(interpretation, majorCriteriaMet, totalMinorScore, culture));
-        aiReasoning.put("warnings", warnings);
 
         Map<String, Object> itemJson = new LinkedHashMap<>();
         itemJson.put("diagnostic_method", "RULE_BASED_BACKEND");
@@ -64,19 +66,21 @@ class PjiDiagnosticReportBuilder {
         itemJson.put("ai_reasoning", aiReasoning);
 
         Map<String, Object> assessment = new LinkedHashMap<>();
-        assessment.put("overall_assessment", primaryDiagnosis(snapshot, interpretation));
+        assessment.put("overall_assessment", primaryDiagnosis(snapshot, interpretation, infectionClassification));
         assessment.put("pji_probability", interpretation);
+        assessment.put("pji_probability_label", interpretationLabel(interpretation));
+        assessment.put("infection_classification", infectionClassification);
         assessment.put("diagnostic_method", "RULE_BASED_BACKEND");
         assessment.put("major_criteria_met", majorCriteriaMet);
         assessment.put("minor_score", totalMinorScore);
 
         Map<String, Object> explanation = new LinkedHashMap<>();
         explanation.put("clinical_reasoning", aiReasoning.get("reasoning_summary"));
-        explanation.put("diagnosis_summary", primaryDiagnosis(snapshot, interpretation));
-        explanation.put("diagnostic_basis", "Backend rule engine using explicit major criteria and ICM-style minor scoring.");
+        explanation.put("diagnosis_summary", primaryDiagnosis(snapshot, interpretation, infectionClassification));
+        explanation.put("diagnostic_basis", "Rule engine Backend áp dụng tiêu chí chính rõ ràng và chấm điểm tiêu chí phụ theo ICM.");
         return new PjiDiagnosticRuleEngine.DiagnosticResult(
                 "Chẩn đoán hệ thống - Đánh giá nhiễm trùng khớp nhân tạo theo tiêu chí ICM",
-                itemJson, assessment, explanation, warnings);
+                itemJson, assessment, explanation);
     }
 
     private Map<String, Object> majorCriteria(PjiCultureEvidenceEvaluator.CultureEvidence culture,
@@ -87,7 +91,7 @@ class PjiDiagnosticReportBuilder {
         items.add(majorCriterion("Đường rò thông với khớp giả", sinus.result() == Boolean.TRUE, sinus.detail(),
                 sinus.result() == Boolean.TRUE));
         Map<String, Object> criteria = new LinkedHashMap<>();
-        criteria.put("note", "Tiêu chí chính có tính quyết định; nếu dương tính thì kết luận INFECTED ngay.");
+        criteria.put("note", "Tiêu chí chính có tính quyết định; nếu dương tính thì kết luận nhiễm trùng ngay.");
         criteria.put("items", items);
         criteria.put("major_criteria_met", majorCriteriaMet);
         criteria.put("major_criteria_conclusion", majorConclusion(majorCriteriaMet, sinus, culture));
@@ -117,47 +121,23 @@ class PjiDiagnosticReportBuilder {
         return supporting;
     }
 
-    private List<Map<String, Object>> buildWarnings(Map<String, Object> snapshot,
-            PjiCultureEvidenceEvaluator.CultureEvidence culture,
-            List<PjiDiagnosticCriteriaEvaluator.CriterionScore> scores) {
-        List<Map<String, Object>> warnings = new ArrayList<>();
-        Optional<Object> allergy = snapshotReader.getNested(snapshot, "medical_history", "allergies", "is_allergy");
-        if (allergy.map(snapshotReader::asBoolean).orElse(false)) {
-            String note = snapshotReader.getNested(snapshot, "medical_history", "allergies", "allergy_note")
-                    .map(Object::toString).orElse("Có tiền sử dị ứng thuốc.");
-            warnings.add(warning("ALLERGY_ALERT", "HIGH", note));
-        }
-        if (culture.antibioticsBefore()) {
-            warnings.add(warning("DATA_QUALITY", "MEDIUM",
-                    "Có mẫu nuôi cấy được ghi nhận sau khi đã dùng kháng sinh; kết quả âm tính cần diễn giải thận trọng."));
-        }
-        long missingCritical = scores.stream().filter(score -> score.result() == null)
-                .filter(score -> score.scoreWeight() >= 2).count();
-        if (missingCritical > 0) {
-            warnings.add(warning("DATA_COMPLETENESS", "MEDIUM", "Còn thiếu " + missingCritical
-                    + " tiêu chí chẩn đoán quan trọng; hệ thống không suy đoán các tiêu chí này."));
-        }
-        return warnings;
-    }
-
-    private String confidenceNote(boolean majorCriteriaMet, int score, int missingCount) {
+    private String confidenceNote(boolean majorCriteriaMet, int score) {
         if (majorCriteriaMet) {
             return "Độ tin cậy cao vì đã thỏa tiêu chí chính.";
         }
-        String missing = missingCount > 0 ? "; còn " + missingCount + " tiêu chí thiếu dữ liệu" : "";
         if (score >= INFECTED_SCORE_THRESHOLD) {
-            return "Điểm minor ≥6, phù hợp INFECTED" + missing + ".";
+            return "Điểm tiêu chí phụ ≥6, phù hợp kết luận nhiễm trùng.";
         }
         if (score >= INCONCLUSIVE_SCORE_MIN) {
-            return "Điểm minor 4-5, kết luận INCONCLUSIVE và cần bổ sung dữ liệu" + missing + ".";
+            return "Điểm tiêu chí phụ 4-5, chưa kết luận được.";
         }
-        return "Điểm minor ≤3, chưa ủng hộ PJI theo dữ liệu hiện có" + missing + ".";
+        return "Điểm tiêu chí phụ ≤3, chưa ủng hộ PJI theo dữ liệu hiện có.";
     }
 
     private String majorConclusion(boolean majorCriteriaMet, PjiDiagnosticCriteriaEvaluator.MajorCriterion sinus,
             PjiCultureEvidenceEvaluator.CultureEvidence culture) {
         if (!majorCriteriaMet) {
-            return "Chưa thỏa tiêu chí chính; diễn giải dựa trên tổng điểm minor và dữ liệu còn thiếu.";
+            return "Chưa thỏa tiêu chí chính; diễn giải dựa trên tổng điểm tiêu chí phụ.";
         }
         List<String> reasons = new ArrayList<>();
         if (culture.majorCriteriaMet()) {
@@ -166,35 +146,44 @@ class PjiDiagnosticReportBuilder {
         if (sinus.result() == Boolean.TRUE) {
             reasons.add("đường rò thông với khớp giả");
         }
-        return "Đã thỏa tiêu chí chính (" + String.join("; ", reasons) + ") → kết luận INFECTED.";
+        return "Đã thỏa tiêu chí chính (" + String.join("; ", reasons) + ") → kết luận nhiễm trùng.";
     }
 
     private String minorScoreNote(int totalMinorScore, boolean majorCriteriaMet) {
-        String base = totalMinorScore >= INFECTED_SCORE_THRESHOLD ? totalMinorScore + "/20 điểm minor khả dụng → ≥6, phân loại INFECTED."
-                : totalMinorScore >= INCONCLUSIVE_SCORE_MIN ? totalMinorScore + "/20 điểm minor khả dụng → 4-5, phân loại INCONCLUSIVE."
-                : totalMinorScore + "/20 điểm minor khả dụng → ≤3, phân loại NOT_INFECTED nếu không có tiêu chí chính.";
-        return majorCriteriaMet ? base + " Tuy nhiên tiêu chí chính đã đủ để kết luận INFECTED." : base;
+        String base = totalMinorScore >= INFECTED_SCORE_THRESHOLD ? totalMinorScore + "/" + MAX_MINOR_SCORE + " điểm tiêu chí phụ khả dụng → ≥6, kết luận nhiễm trùng."
+                : totalMinorScore >= INCONCLUSIVE_SCORE_MIN ? totalMinorScore + "/" + MAX_MINOR_SCORE + " điểm tiêu chí phụ khả dụng → 4-5, chưa kết luận được."
+                : totalMinorScore + "/" + MAX_MINOR_SCORE + " điểm tiêu chí phụ khả dụng → ≤3, chưa có bằng chứng nhiễm trùng nếu không có tiêu chí chính.";
+        return majorCriteriaMet ? base + " Tuy nhiên tiêu chí chính đã đủ để kết luận nhiễm trùng." : base;
     }
 
-    private String primaryDiagnosis(Map<String, Object> snapshot, String interpretation) {
+    private String primaryDiagnosis(Map<String, Object> snapshot, String interpretation,
+            String infectionClassification) {
         String joint = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "prosthesis_joint")
                 .map(Object::toString).filter(value -> !value.isBlank()).map(value -> " " + value.replace('_', ' ')).orElse("");
         return switch (interpretation) {
-            case "INFECTED" -> "Nhiễm trùng khớp nhân tạo" + joint;
+            case "INFECTED" -> "Nhiễm trùng khớp nhân tạo" + joint + " "
+                    + infectionClassificationLabel(infectionClassification);
             case "INCONCLUSIVE" -> "Chưa xác định nhiễm trùng khớp nhân tạo" + joint;
             default -> "Chưa đủ bằng chứng nhiễm trùng khớp nhân tạo" + joint;
         };
     }
 
-    private String infectionClassification(Map<String, Object> snapshot) {
-        return snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "onset_timing")
-                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_infection_type"))
-                .map(Object::toString).filter(value -> !value.isBlank()).orElse("UNKNOWN");
+    private String infectionClassification(String interpretation, String clinicalPhase) {
+        return "INFECTED".equals(interpretation) ? clinicalPhase : "NOT_APPLICABLE";
     }
 
-    private String infectionClassificationReasoning(Map<String, Object> snapshot) {
+    private String infectionClassificationReasoning(Map<String, Object> snapshot, String interpretation,
+            String infectionClassification) {
+        if (!"INFECTED".equals(interpretation)) {
+            return "Không phân loại cấp/mạn vì kết luận hiện tại chưa xác định nhiễm trùng.";
+        }
         List<String> facts = new ArrayList<>();
-        facts.add("Thời điểm khởi phát so với phẫu thuật gần nhất: " + infectionClassification(snapshot));
+        String onsetTiming = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "onset_timing")
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_infection_type"))
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "onset_timing"))
+                .map(Object::toString).filter(value -> !value.isBlank()).orElse("không ghi nhận");
+        facts.add("Phân loại " + infectionClassificationLabel(infectionClassification)
+                + " theo thời điểm khởi phát: " + onsetTiming);
         snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_transmission_route")
                 .ifPresent(value -> facts.add("đường lây nhiễm nghi ngờ: " + value));
         snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "hematogenous_suspected")
@@ -202,6 +191,10 @@ class PjiDiagnosticReportBuilder {
         snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "implant_stability")
                 .ifPresent(value -> facts.add("ổn định implant: " + value));
         return String.join("; ", facts) + ".";
+    }
+
+    private String infectionClassificationLabel(String infectionClassification) {
+        return "ACUTE".equals(infectionClassification) ? "cấp tính" : "mạn tính";
     }
 
     private Map<String, Object> identifiedOrganism(PjiCultureEvidenceEvaluator.CultureEvidence culture) {
@@ -225,14 +218,22 @@ class PjiDiagnosticReportBuilder {
     private String reasoningSummary(String interpretation, boolean majorCriteriaMet, int score,
             PjiCultureEvidenceEvaluator.CultureEvidence culture) {
         List<String> parts = new ArrayList<>();
-        parts.add(majorCriteriaMet ? "Kết luận INFECTED theo tiêu chí chính."
-                : "Không thỏa tiêu chí chính; phân loại theo điểm minor = " + score + ".");
-        parts.add("Ngưỡng diễn giải: ≥6 INFECTED, 4-5 INCONCLUSIVE, ≤3 NOT_INFECTED.");
+        parts.add(majorCriteriaMet ? "Kết luận nhiễm trùng theo tiêu chí chính."
+                : "Không thỏa tiêu chí chính; phân loại theo tổng điểm tiêu chí phụ = " + score + ".");
+        parts.add("Ngưỡng diễn giải: ≥6 điểm là nhiễm trùng, 4-5 điểm chưa kết luận, ≤3 điểm không nhiễm trùng.");
         if (culture.topOrganism() != null) {
             parts.add("Tác nhân nổi bật: " + culture.topOrganism() + ".");
         }
-        parts.add("Kết luận hiện tại: " + interpretation + ".");
+        parts.add("Kết luận hiện tại: " + interpretationLabel(interpretation) + ".");
         return String.join(" ", parts);
+    }
+
+    private String interpretationLabel(String interpretation) {
+        return switch (interpretation) {
+            case "INFECTED" -> "Nhiễm trùng khớp nhân tạo (PJI)";
+            case "INCONCLUSIVE" -> "Chưa kết luận được nhiễm trùng khớp nhân tạo (PJI)";
+            default -> "Không có bằng chứng nhiễm trùng khớp nhân tạo (PJI)";
+        };
     }
 
     private String resistanceProfile(String organism, List<Map<String, Object>> sensitivities) {
@@ -291,10 +292,6 @@ class PjiDiagnosticReportBuilder {
                 : "Tác nhân được định danh từ mẫu dương tính; cần đối chiếu bối cảnh lâm sàng và nguy cơ nhiễm bẩn mẫu.";
     }
 
-    private int missingCount(List<PjiDiagnosticCriteriaEvaluator.CriterionScore> scores) {
-        return (int) scores.stream().filter(score -> score.result() == null).count();
-    }
-
     private Map<String, Object> majorCriterion(String criterion, boolean result, String detail, boolean decisive) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("criterion", criterion);
@@ -304,11 +301,4 @@ class PjiDiagnosticReportBuilder {
         return item;
     }
 
-    private Map<String, Object> warning(String type, String severity, String message) {
-        Map<String, Object> warning = new LinkedHashMap<>();
-        warning.put("type", type);
-        warning.put("severity", severity);
-        warning.put("message", message);
-        return warning;
-    }
 }

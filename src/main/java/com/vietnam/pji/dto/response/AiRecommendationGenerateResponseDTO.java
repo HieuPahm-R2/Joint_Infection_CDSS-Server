@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
+import java.util.List;
 
 /**
  * Payload returned from FastAPI after recommendation generation.
@@ -29,15 +29,6 @@ public class AiRecommendationGenerateResponseDTO implements Serializable {
 
     @JsonProperty("latency_ms")
     private Long latencyMs;
-
-    @JsonProperty("assessment_json")
-    private Map<String, Object> assessmentJson;
-
-    @JsonProperty("explanation_json")
-    private Map<String, Object> explanationJson;
-
-    @JsonProperty("warnings_json")
-    private List<Map<String, Object>> warningsJson;
 
     @JsonProperty("ai_recommendation_items")
     private List<ItemDTO> items;
