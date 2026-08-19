@@ -42,6 +42,12 @@ public class User extends AbstractEntity<Long> {
     @Column(name = "avatar")
     private String avatar;
 
+    @Column(name = "avatar_bucket", length = 200)
+    private String avatarBucket;
+
+    @Column(name = "avatar_object_key", length = 500)
+    private String avatarObjectKey;
+
     @Column(name = "refresh_token", columnDefinition = "MEDIUMTEXT")
     private String refreshToken;
 

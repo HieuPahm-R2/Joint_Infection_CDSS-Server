@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -133,6 +134,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public User updateOwnProfile(String email, UpdateOwnProfileRequestDTO data) {
         User user = userRepository.findByEmail(email);
         if (user == null) {
@@ -149,8 +151,15 @@ public class UserServiceImpl implements UserService {
             user.setAvatar(data.getAvatar().isBlank() ? null : data.getAvatar());
         }
         User saved = userRepository.save(user);
+        initializeRolePermissions(saved);
         redisService.evictUserPermissions(saved.getEmail());
         return saved;
+    }
+
+    private void initializeRolePermissions(User user) {
+        if (user.getRole() != null && user.getRole().getPermissions() != null) {
+            user.getRole().getPermissions().size();
+        }
     }
 
     @Override

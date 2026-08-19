@@ -92,6 +92,18 @@ public class MinioChannel {
      */
     @SneakyThrows
     public UploadResult uploadObject(@NonNull final MultipartFile file, String bucket) {
+        UploadResult stored = storeObject(file, bucket);
+        return new UploadResult(
+                stored.bucket(),
+                stored.objectKey(),
+                presignedGetUrl(stored.bucket(), stored.objectKey()));
+    }
+
+    /**
+     * Store an object without generating a browser URL. This keeps a successful write
+     * independent from public-endpoint/presigner availability.
+     */
+    public UploadResult storeObject(@NonNull final MultipartFile file, String bucket) {
         log.info("Bucket: {}, file size: {}", bucket, file.getSize());
         final var objectKey = System.currentTimeMillis() + "-" + file.getOriginalFilename();
         try {
@@ -104,10 +116,10 @@ public class MinioChannel {
                             .stream(file.getInputStream(), file.getSize(), -1)
                             .build());
         } catch (Exception ex) {
-            log.error("Error saving image \n {} ", ex.getMessage());
+            log.error("Unable to store object in bucket {}", bucket, ex);
             throw new BusinessException("400", "Unable to upload file", ex);
         }
-        return new UploadResult(bucket, objectKey, presignedGetUrl(bucket, objectKey));
+        return new UploadResult(bucket, objectKey, null);
     }
 
     /**

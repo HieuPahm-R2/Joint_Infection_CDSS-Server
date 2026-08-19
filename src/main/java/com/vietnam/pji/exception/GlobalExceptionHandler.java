@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import static org.springframework.http.HttpStatus.*;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -21,6 +23,36 @@ import java.util.Date;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(StorageUnavailableException.class)
+    @ResponseStatus(SERVICE_UNAVAILABLE)
+    public ErrorResponse handleStorageUnavailableException(
+            StorageUnavailableException e,
+            WebRequest request) {
+        log.warn("Storage unavailable on {}: {}", request.getDescription(false), e.getMessage());
+        return errorResponse(SERVICE_UNAVAILABLE.value(), SERVICE_UNAVAILABLE.getReasonPhrase(),
+                e.getMessage(), request);
+    }
+
+    @ExceptionHandler({MaxUploadSizeExceededException.class, PayloadTooLargeException.class})
+    @ResponseStatus(PAYLOAD_TOO_LARGE)
+    public ErrorResponse handleMaxUploadSizeExceededException(
+            Exception e,
+            WebRequest request) {
+        String message = e instanceof PayloadTooLargeException
+                ? e.getMessage()
+                : "Tệp tải lên vượt quá dung lượng cho phép.";
+        return errorResponse(PAYLOAD_TOO_LARGE.value(), PAYLOAD_TOO_LARGE.getReasonPhrase(),
+                message, request);
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    @ResponseStatus(BAD_REQUEST)
+    public ErrorResponse handleMultipartException(MultipartException e, WebRequest request) {
+        log.warn("Invalid multipart request on {}: {}", request.getDescription(false), e.getMessage());
+        return errorResponse(BAD_REQUEST.value(), "Invalid Multipart Request",
+                "Yêu cầu tải tệp không hợp lệ.", request);
+    }
 
     /**
      * Handle exception when validate data
@@ -196,6 +228,7 @@ public class GlobalExceptionHandler {
                             """)) })
     })
     public ErrorResponse handleException(Exception e, WebRequest req) {
+        log.error("Unhandled exception on {}", req.getDescription(false), e);
         ErrorResponse errorResponse = new ErrorResponse();
         errorResponse.setTimestamp(new Date());
         errorResponse.setPath(req.getDescription(false).replace("uri=", ""));
@@ -204,6 +237,16 @@ public class GlobalExceptionHandler {
         errorResponse.setMessage(e.getMessage());
 
         return errorResponse;
+    }
+
+    private ErrorResponse errorResponse(int status, String error, String message, WebRequest request) {
+        ErrorResponse response = new ErrorResponse();
+        response.setTimestamp(new Date());
+        response.setPath(request.getDescription(false).replace("uri=", ""));
+        response.setStatus(status);
+        response.setError(error);
+        response.setMessage(message);
+        return response;
     }
 
     @ExceptionHandler(value = {

@@ -15,6 +15,7 @@ import com.vietnam.pji.model.auth.UserTrustedDevice;
 import com.vietnam.pji.repository.UserTrustedDeviceRepository;
 import com.vietnam.pji.services.auth.DeviceVerificationService;
 import com.vietnam.pji.services.auth.PasswordRecoveryService;
+import com.vietnam.pji.services.auth.UserAvatarService;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.services.security.CaptchaService;
@@ -30,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,6 +40,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -62,6 +65,7 @@ public class AuthController {
     private String sameSite;
 
     private final UserService userService;
+    private final UserAvatarService userAvatarService;
     private final RedisService RedisService;
     private final AuthenticationManager authenticationManager;
     private final SecurityUtils securityUtils;
@@ -232,7 +236,7 @@ public class AuthController {
             userData.setRole(roleMapper.toDetail(userCreated.getRole()));
             userData.setPhone(userCreated.getPhone());
             userData.setDepartment(userCreated.getDepartment());
-            userData.setAvatar(userCreated.getAvatar());
+            userData.setAvatar(userAvatarService.resolveAvatarUrl(userCreated));
             info.setUser(userData);
         }
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch account successfully", info);
@@ -245,7 +249,7 @@ public class AuthController {
             @ApiResponse(responseCode = "200", description = "Profile updated"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PutMapping("/auth/account")
+    @PutMapping(value = "/auth/account", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseData<ResLoginDTO.UserData> updateOwnProfile(@Valid @RequestBody UpdateOwnProfileRequestDTO data) {
         String emailLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(
                 () -> new InvalidDataException("Phiên đăng nhập không hợp lệ."));
@@ -257,8 +261,34 @@ public class AuthController {
                 roleMapper.toDetail(updated.getRole()));
         payload.setPhone(updated.getPhone());
         payload.setDepartment(updated.getDepartment());
-        payload.setAvatar(updated.getAvatar());
+        payload.setAvatar(userAvatarService.resolveAvatarUrl(updated));
         return new ResponseData<>(HttpStatus.OK.value(), "Cập nhật thông tin tài khoản thành công", payload);
+    }
+
+    @Operation(summary = "Update own profile with avatar", description = "Updates the authenticated user's profile and uploads a JPEG, PNG, or WEBP avatar (max 5 MB).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profile and avatar updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid avatar file"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
+            @ApiResponse(responseCode = "413", description = "Avatar exceeds the configured upload limit"),
+            @ApiResponse(responseCode = "503", description = "Avatar storage is temporarily unavailable")
+    })
+    @PutMapping(value = "/auth/account", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseData<ResLoginDTO.UserData> updateOwnProfileWithAvatar(
+            @Valid @RequestPart("profile") UpdateOwnProfileRequestDTO data,
+            @RequestPart("avatar") MultipartFile avatar) {
+        String emailLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(
+                () -> new InvalidDataException("Phiên đăng nhập không hợp lệ."));
+        User updated = userAvatarService.updateProfileWithAvatar(emailLogin, data, avatar);
+        ResLoginDTO.UserData payload = new ResLoginDTO.UserData(
+                updated.getId(),
+                updated.getFullName(),
+                updated.getEmail(),
+                roleMapper.toDetail(updated.getRole()));
+        payload.setPhone(updated.getPhone());
+        payload.setDepartment(updated.getDepartment());
+        payload.setAvatar(userAvatarService.resolveAvatarUrl(updated));
+        return new ResponseData<>(HttpStatus.OK.value(), "Cập nhật thông tin và ảnh đại diện thành công", payload);
     }
 
     @Operation(summary = "Change own password", description = "Self-service password change. Requires the current password; "
@@ -385,6 +415,7 @@ public class AuthController {
                 realUser.getFullName(),
                 realUser.getEmail(),
                 roleMapper.toDetail(realUser.getRole()));
+        userLog.setAvatar(userAvatarService.resolveAvatarUrl(realUser));
         resLoginDTO.setUser(userLog);
         return resLoginDTO;
     }
