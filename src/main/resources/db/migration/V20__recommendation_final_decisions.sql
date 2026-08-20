@@ -104,7 +104,7 @@ WITH doctor_review_roles AS (
     )
 )
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT role.id, permission.id
+SELECT role.role_id, permission.id
 FROM doctor_review_roles role
 CROSS JOIN final_decision_permissions permission
 ON CONFLICT DO NOTHING;
