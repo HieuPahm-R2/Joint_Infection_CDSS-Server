@@ -36,7 +36,7 @@ public class UserController {
             @ApiResponse(responseCode = "201", description = "User created"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PostMapping("/add-user")
+    @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseData<UserDetailResponse> createUser(@Valid @RequestBody UserRequestDTO request) {
         return new ResponseData<>(HttpStatus.CREATED.value(), "User created successfully", userService.create(request));
@@ -47,7 +47,7 @@ public class UserController {
             @ApiResponse(responseCode = "200", description = "User updated"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PutMapping("/update-user")
+    @PutMapping("/users")
     public ResponseData<Void> updateUser(@Valid @RequestBody UserRequestDTO request) {
         userService.update(request);
         return new ResponseData<>(HttpStatus.OK.value(), "User updated successfully");
@@ -70,7 +70,7 @@ public class UserController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "User not found")
     })
-    @DeleteMapping("/delete-user/{id}")
+    @DeleteMapping("/users/{id}")
     public ResponseData<Void> deleteUser(@PathVariable long id) {
         userService.delete(id);
         return new ResponseData<>(HttpStatus.OK.value(), "User deleted successfully");

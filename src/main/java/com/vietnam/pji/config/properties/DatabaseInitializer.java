@@ -148,26 +148,26 @@ public class DatabaseInitializer implements CommandLineRunner {
                                         "/api/v1/culture-results/{cultureId}/sensitivity-results", "GET",
                                         "SENSITIVITY_RESULTS"));
 
-                        arrResult.add(new Permission("Create a permission", "/api/v1/add-permission", "POST",
+                        arrResult.add(new Permission("Create a permission", "/api/v1/permissions", "POST",
                                         "PERMISSIONS"));
-                        arrResult.add(new Permission("Update a permission", "/api/v1/update-permission", "PUT",
+                        arrResult.add(new Permission("Update a permission", "/api/v1/permissions", "PUT",
                                         "PERMISSIONS"));
-                        arrResult.add(new Permission("Delete a permission", "/api/v1/delete-permission/{id}",
+                        arrResult.add(new Permission("Delete a permission", "/api/v1/permissions/{id}",
                                         "DELETE", "PERMISSIONS"));
-                        arrResult.add(new Permission("Get a permission by id", "/api/v1/permission/{id}", "GET",
+                        arrResult.add(new Permission("Get a permission by id", "/api/v1/permissions/{id}", "GET",
                                         "PERMISSIONS"));
                         arrResult.add(new Permission("Get permission with pagination", "/api/v1/permissions",
                                         "GET", "PERMISSIONS"));
 
-                        arrResult.add(new Permission("Create a role", "/api/v1/add-role", "POST", "ROLES"));
-                        arrResult.add(new Permission("Update a role", "/api/v1/update-role", "PUT", "ROLES"));
-                        arrResult.add(new Permission("Delete a role", "/api/v1/delete-role/{id}", "DELETE", "ROLES"));
+                        arrResult.add(new Permission("Create a role", "/api/v1/roles", "POST", "ROLES"));
+                        arrResult.add(new Permission("Update a role", "/api/v1/roles", "PUT", "ROLES"));
+                        arrResult.add(new Permission("Delete a role", "/api/v1/roles/{id}", "DELETE", "ROLES"));
                         arrResult.add(new Permission("Get role by id", "/api/v1/role/{id}", "GET", "ROLES"));
                         arrResult.add(new Permission("Get roles with pagination", "/api/v1/roles", "GET", "ROLES"));
 
-                        arrResult.add(new Permission("Create a user", "/api/v1/add-user", "POST", "USERS"));
-                        arrResult.add(new Permission("Update a user", "/api/v1/update-user", "PUT", "USERS"));
-                        arrResult.add(new Permission("Delete a user", "/api/v1/delete-user/{id}", "DELETE", "USERS"));
+                        arrResult.add(new Permission("Create a user", "/api/v1/users", "POST", "USERS"));
+                        arrResult.add(new Permission("Update a user", "/api/v1/users", "PUT", "USERS"));
+                        arrResult.add(new Permission("Delete a user", "/api/v1/users/{id}", "DELETE", "USERS"));
                         arrResult.add(new Permission("Get a user by id", "/api/v1/user/{id}", "GET", "USERS"));
                         arrResult.add(new Permission("Get users with pagination", "/api/v1/users", "GET", "USERS"));
 

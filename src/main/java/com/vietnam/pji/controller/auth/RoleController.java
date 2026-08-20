@@ -32,7 +32,7 @@ public class RoleController {
             @ApiResponse(responseCode = "201", description = "Role created"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PostMapping("/add-role")
+    @PostMapping("/roles")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseData<RoleDetailDTO> create(@RequestBody Role data) {
         if (roleRepository.existsByName(data.getName())) {
@@ -46,7 +46,7 @@ public class RoleController {
             @ApiResponse(responseCode = "200", description = "Role updated"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PutMapping("/update-role")
+    @PutMapping("/roles")
     public ResponseData<Void> update(@RequestBody Role data) {
         roleService.update(data);
         return new ResponseData<>(HttpStatus.OK.value(), "Role updated successfully");
@@ -58,7 +58,7 @@ public class RoleController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Role not found")
     })
-    @DeleteMapping("/delete-role/{id}")
+    @DeleteMapping("/roles/{id}")
     public ResponseData<Void> delete(@PathVariable("id") long id) {
         roleService.delete(id);
         return new ResponseData<>(HttpStatus.OK.value(), "Role deleted successfully");
