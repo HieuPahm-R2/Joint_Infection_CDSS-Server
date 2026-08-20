@@ -64,6 +64,16 @@ FROM "public"."rule_based_diagnostic_results" diagnostic
 WHERE diagnostic."run_id" = run."id"
   AND COALESCE(run."warnings_json", '[]'::jsonb) = diagnostic."warnings_json";
 
+-- Historical chat sessions could have referenced a legacy diagnostic item as
+-- their current focus. Clear the reference before removing the item row.
+UPDATE "public"."ai_chat_sessions"
+SET "current_item_id" = NULL
+WHERE "current_item_id" IN (
+    SELECT "id"
+    FROM "public"."ai_recommendation_items"
+    WHERE "category" = 'DIAGNOSTIC_TEST'
+);
+
 -- Citations attached to a legacy diagnostic item cascade with the item. They
 -- were synthetic backend citations rather than RAG evidence for treatment.
 DELETE FROM "public"."ai_recommendation_items"
