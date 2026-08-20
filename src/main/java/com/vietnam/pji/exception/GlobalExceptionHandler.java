@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -294,5 +295,32 @@ public class GlobalExceptionHandler {
         errorResponse.setHeldBy(e.getHeldBy());
         errorResponse.setTtlSeconds(e.getTtlSeconds());
         return errorResponse;
+    }
+
+    /**
+     * Handle authentication failure (wrong email or password, user not found, bad credentials, etc.)
+     *
+     * @param e
+     * @param request
+     * @return errorResponse
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    @ResponseStatus(UNAUTHORIZED)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, examples = @ExampleObject(name = "401 Response", summary = "Handle authentication failure", value = """
+                            {
+                              "timestamp": "2024-04-07T11:38:56.368+00:00",
+                              "status": 401,
+                              "path": "/api/v1/auth/login",
+                              "error": "Unauthorized",
+                              "message": "Email hoặc mật khẩu không chính xác."
+                            }
+                            """)) })
+    })
+    public ErrorResponse handleAuthenticationException(AuthenticationException e, WebRequest request) {
+        log.warn("Authentication failed on {}: {}", request.getDescription(false), e.getMessage());
+        return errorResponse(UNAUTHORIZED.value(), UNAUTHORIZED.getReasonPhrase(),
+                "Email hoặc mật khẩu không chính xác.", request);
     }
 }

@@ -95,8 +95,8 @@ app:
   bootstrap-admin:
     enabled: ${BOOTSTRAP_ADMIN_ENABLED:true}
     email: ${BOOTSTRAP_ADMIN_EMAIL:admin@example.com}
-    password: ${BOOTSTRAP_ADMIN_PASSWORD:123456}
-    full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:System Administrator}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:admin2026}
+    full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:System Admin}
   password-recovery:
     otp-ttl-seconds: ${PASSWORD_RECOVERY_OTP_TTL_SECONDS:300}
     max-attempts: ${PASSWORD_RECOVERY_MAX_ATTEMPTS:5}

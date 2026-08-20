@@ -52,6 +52,18 @@ class GlobalExceptionHandlerTest {
         assertEquals("Yêu cầu tải tệp không hợp lệ.", response.getMessage());
     }
 
+    @Test
+    void authenticationExceptionReturnsUnauthorizedWithFriendlyMessage() {
+        ErrorResponse response = handler.handleAuthenticationException(
+                new org.springframework.security.authentication.BadCredentialsException("Bad credentials"),
+                request);
+
+        assertEquals(401, response.getStatus());
+        assertEquals("Unauthorized", response.getError());
+        assertEquals("Email hoặc mật khẩu không chính xác.", response.getMessage());
+        assertEquals("/api/v1/auth/account", response.getPath());
+    }
+
     private static MockHttpServletRequest accountRequest() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/auth/account");

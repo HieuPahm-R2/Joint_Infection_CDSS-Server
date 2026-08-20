@@ -22,6 +22,9 @@ public class UserDetailsConfig implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         com.vietnam.pji.model.auth.User user = this.userService.handleGetUserByUsername(username);
+        if (user == null || user.getPassword() == null) {
+            throw new UsernameNotFoundException("User not found with email: " + username);
+        }
         return new User(user.getEmail(), user.getPassword(),
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE-USER")));
     }
