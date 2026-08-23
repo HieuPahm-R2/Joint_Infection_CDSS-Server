@@ -6,12 +6,18 @@ import com.vietnam.pji.dto.response.EpisodeFullResponseDTO;
 import com.vietnam.pji.dto.response.ResponseData;
 import com.vietnam.pji.services.episode.EpisodeAggregateService;
 import com.vietnam.pji.services.episode.EpisodeService;
+import com.vietnam.pji.services.episode.EpisodeLockService;
+import com.vietnam.pji.utils.SecurityUtils;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class EpisodeControllerTest {
 
@@ -43,14 +49,20 @@ class EpisodeControllerTest {
                 (proxy, method, args) -> {
                     throw new AssertionError("EpisodeService should not be called directly");
                 });
-        EpisodeController controller = new EpisodeController(episodeService, episodeAggregateService);
+        EpisodeLockService episodeLockService = mock(EpisodeLockService.class);
+        EpisodeController controller = new EpisodeController(episodeService, episodeAggregateService, episodeLockService);
 
-        ResponseData<Void> response = controller.updateEpisodeFull(11L, request);
+        ResponseData<Void> response;
+        try (MockedStatic<SecurityUtils> security = Mockito.mockStatic(SecurityUtils.class)) {
+            security.when(SecurityUtils::getCurrentUserId).thenReturn(7L);
+            response = controller.updateEpisodeFull(11L, request);
+        }
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getMessage()).isEqualTo("Episode updated successfully");
         assertThat(response.getData()).isNull();
         assertThat(new ObjectMapper().writeValueAsString(response)).doesNotContain("\"data\"");
         assertThat(updateCalled).isTrue();
+        verify(episodeLockService).assertHeldBy(11L, 7L);
     }
 }

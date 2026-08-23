@@ -115,6 +115,20 @@ public class EpisodeLockServiceImpl implements EpisodeLockService {
         }
     }
 
+    @Override
+    public void assertHeldBy(Long episodeId, Long userId) {
+        String key = lockKey(episodeId);
+        String currentHolder = redisTemplate.opsForValue().get(key);
+        if (!String.valueOf(userId).equals(currentHolder)) {
+            Long ttl = redisTemplate.getExpire(key);
+            long ttlSeconds = ttl == null || ttl < 0 ? 0 : ttl;
+            throw new ResourceBusyException(
+                    "A valid episode edit lock is required before saving",
+                    parseHolder(currentHolder),
+                    ttlSeconds);
+        }
+    }
+
     private void requireEpisodeExists(Long episodeId) {
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode " + episodeId + " not found");

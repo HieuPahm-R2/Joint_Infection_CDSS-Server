@@ -1,10 +1,12 @@
 package com.vietnam.pji.services.doctor.impl;
 
 import com.vietnam.pji.constant.ReviewStatus;
+import com.vietnam.pji.constant.ClinicalDecisionStatus;
 import com.vietnam.pji.dto.request.DoctorRecommendationReviewRequestDTO;
 import com.vietnam.pji.dto.request.DoctorFinalDecisionRequestDTO;
 import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.exception.ResourceNotFoundException;
+import com.vietnam.pji.exception.InvalidDataException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
 import com.vietnam.pji.model.agentic.DoctorFinalDecision;
@@ -16,6 +18,7 @@ import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.doctor.DoctorRecommendationReviewService;
+import com.vietnam.pji.services.clinicaldecision.ClinicalDecisionService;
 import com.vietnam.pji.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +40,7 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
     private final AiRecommendationRunRepository runRepository;
     private final EpisodeRepository episodeRepository;
     private final UserService userService;
+    private final ClinicalDecisionService clinicalDecisionService;
 
     @Override
     @Transactional
@@ -59,6 +63,8 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
                         .episode(episode)
                         .run(run)
                         .build());
+
+        validateExistingDecisionOwner(review, run);
 
         review.setReviewStatus(status);
         review.setReviewNote(request.getReviewNote());
@@ -92,7 +98,21 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         }
 
         DoctorFinalDecision decision = doctorFinalDecisionRepository.findByReviewId(review.getId())
-                .orElse(DoctorFinalDecision.builder().review(review).build());
+                .orElseGet(() -> DoctorFinalDecision.builder()
+                        .review(review)
+                        .run(review.getRun())
+                        .author(currentUser())
+                        .status(ClinicalDecisionStatus.DRAFT)
+                        .build());
+        if (decision.getRun() == null) {
+            decision.setRun(review.getRun());
+        }
+        if (decision.getAuthor() == null) {
+            decision.setAuthor(currentUser());
+        }
+        if (decision.getStatus() == ClinicalDecisionStatus.SIGNED) {
+            throw new InvalidDataException("Signed clinical decisions are immutable");
+        }
         decision.setDiagnosisJson(diagnosis != null ? diagnosis : Map.of());
         decision.setSurgeryPlanJson(surgery);
         DoctorFinalDecision saved = doctorFinalDecisionRepository.save(decision);
@@ -131,6 +151,17 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         String currentEmail = SecurityUtils.getCurrentUserLogin().orElse("");
         if (isBlank(currentEmail)) {
             throw new ForbiddenException("You don't have permission to review this treatment plan");
+        }
+
+        User currentUser = userService.handleGetUserByUsername(currentEmail);
+        if (run.getCreatedByUserId() != null
+                && (currentUser == null || !run.getCreatedByUserId().equals(currentUser.getId()))) {
+            throw new ForbiddenException("Only the doctor who created this AI run can edit its decision");
+        }
+        if (run.getCreatedByUserId() == null
+                && !isBlank(run.getCreatedBy())
+                && !sameUser(currentEmail, run.getCreatedBy())) {
+            throw new ForbiddenException("Only the doctor who created this AI run can edit its decision");
         }
 
         if (isAdmin(currentEmail)) {
@@ -203,12 +234,41 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
             throw new ForbiddenException("Doctor review does not belong to this episode");
         }
         validateReviewAccess(review.getEpisode(), review.getRun());
-
-        reviewRepository.clearFinalDecisionForEpisode(episodeId);
-        review.setFinalDecision(true);
-        DoctorRecommendationReview saved = reviewRepository.save(review);
+        clinicalDecisionService.selectFinalRun(episodeId, review.getRun().getId());
+        DoctorRecommendationReview saved = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor review not found with id: " + reviewId));
         eagerInit(saved);
         return saved;
+    }
+
+    private void validateExistingDecisionOwner(DoctorRecommendationReview review, AiRecommendationRun run) {
+        if (review.getId() == null) return;
+        DoctorFinalDecision decision = doctorFinalDecisionRepository.findByReviewId(review.getId()).orElse(null);
+        if (decision == null) return;
+        User user = currentUser();
+        if (decision.getAuthor() != null
+                && decision.getAuthor().getId() != null
+                && !decision.getAuthor().getId().equals(user.getId())) {
+            throw new ForbiddenException("This doctor decision belongs to another user");
+        }
+        if (decision.getAuthor() == null
+                && run.getCreatedByUserId() != null
+                && !run.getCreatedByUserId().equals(user.getId())) {
+            throw new ForbiddenException("Only the doctor who created this AI run can edit its decision");
+        }
+        if (decision.getStatus() == ClinicalDecisionStatus.SIGNED) {
+            throw new InvalidDataException("Signed clinical decisions are immutable");
+        }
+    }
+
+    private User currentUser() {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new ForbiddenException("Authenticated user required"));
+        User user = userService.handleGetUserByUsername(email);
+        if (user == null || user.getId() == null) {
+            throw new ForbiddenException("Authenticated user required");
+        }
+        return user;
     }
 
     private void eagerInit(DoctorRecommendationReview review) {

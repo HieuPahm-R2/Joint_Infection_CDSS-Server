@@ -22,4 +22,7 @@ public interface EpisodeLockService {
      * expired).
      */
     void release(Long episodeId, Long userId);
+
+    /** Require an existing lock owned by the caller before persisting an episode aggregate. */
+    void assertHeldBy(Long episodeId, Long userId);
 }

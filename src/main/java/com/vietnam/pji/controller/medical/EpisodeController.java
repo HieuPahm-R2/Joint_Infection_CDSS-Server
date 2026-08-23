@@ -9,6 +9,9 @@ import com.vietnam.pji.dto.response.ResponseData;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.services.episode.EpisodeAggregateService;
 import com.vietnam.pji.services.episode.EpisodeService;
+import com.vietnam.pji.services.episode.EpisodeLockService;
+import com.vietnam.pji.exception.ForbiddenException;
+import com.vietnam.pji.utils.SecurityUtils;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -31,6 +34,7 @@ public class EpisodeController {
 
     private final EpisodeService episodeService;
     private final EpisodeAggregateService episodeAggregateService;
+    private final EpisodeLockService episodeLockService;
 
     @Operation(summary = "Create episode")
     @ApiResponses({
@@ -142,6 +146,11 @@ public class EpisodeController {
     @PutMapping("/episodes/{id}/full")
     public ResponseData<Void> updateEpisodeFull(
             @PathVariable Long id, @Valid @RequestBody EpisodeFullRequestDTO request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new ForbiddenException("Authenticated user required");
+        }
+        episodeLockService.assertHeldBy(id, userId);
         episodeAggregateService.updateFull(id, request);
         return new ResponseData<>(HttpStatus.OK.value(), "Episode updated successfully");
     }

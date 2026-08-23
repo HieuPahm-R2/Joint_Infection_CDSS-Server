@@ -43,6 +43,38 @@ public class RecommendationAccessService {
         validateOwnerOrAdmin(episode, run);
     }
 
+    @Transactional(readOnly = true)
+    public void assertCanReviewEpisode(Long episodeId) {
+        PjiEpisode episode = episodeRepository.findById(episodeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
+        Hibernate.initialize(episode.getPatient());
+        validateReviewer(episode, null);
+    }
+
+    @Transactional(readOnly = true)
+    public void assertCanReviewRun(Long runId) {
+        AiRecommendationRun run = runRepository.findById(runId)
+                .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
+        Hibernate.initialize(run.getEpisode());
+        PjiEpisode episode = run.getEpisode();
+        if (episode == null) {
+            throw new ForbiddenException("AI recommendation run is not linked to a medical record");
+        }
+        Hibernate.initialize(episode.getPatient());
+        validateReviewer(episode, run);
+    }
+
+    private void validateReviewer(PjiEpisode episode, AiRecommendationRun run) {
+        String currentEmail = SecurityUtils.getCurrentUserLogin().orElse("");
+        if (isBlank(currentEmail)) {
+            throw new ForbiddenException("You don't have permission to review this treatment plan");
+        }
+        User user = userService.handleGetUserByUsername(currentEmail);
+        String roleName = user != null && user.getRole() != null ? user.getRole().getName() : "";
+        if ("PHARMACIST".equalsIgnoreCase(roleName)) return;
+        validateOwnerOrAdmin(episode, run);
+    }
+
     private void validateOwnerOrAdmin(PjiEpisode episode, AiRecommendationRun run) {
         String currentEmail = SecurityUtils.getCurrentUserLogin().orElse("");
         if (isBlank(currentEmail)) {

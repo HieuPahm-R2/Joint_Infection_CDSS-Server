@@ -13,12 +13,15 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface AiRecommendationRunRepository extends JpaRepository<AiRecommendationRun, Long>,
         JpaSpecificationExecutor<AiRecommendationRun> {
 
     Page<AiRecommendationRun> findByEpisodeIdOrderByCreatedAtDesc(Long episodeId, Pageable pageable);
+
+    List<AiRecommendationRun> findByEpisodeIdOrderByCreatedAtDesc(Long episodeId);
 
     @Query("SELECT COALESCE(MAX(r.runNo), 0) FROM AiRecommendationRun r WHERE r.episode.id = :episodeId")
     int findMaxRunNoByEpisodeId(Long episodeId);

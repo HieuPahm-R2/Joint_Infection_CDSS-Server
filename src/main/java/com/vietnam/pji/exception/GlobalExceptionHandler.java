@@ -2,6 +2,7 @@ package com.vietnam.pji.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -168,6 +169,18 @@ public class GlobalExceptionHandler {
         errorResponse.setMessage(e.getMessage());
 
         return errorResponse;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    @ResponseStatus(CONFLICT)
+    public ErrorResponse handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException e,
+            WebRequest request) {
+        return errorResponse(
+                CONFLICT.value(),
+                CONFLICT.getReasonPhrase(),
+                "Dữ liệu đã được thay đổi ở nơi khác. Vui lòng tải lại trước khi lưu.",
+                request);
     }
 
     /**
