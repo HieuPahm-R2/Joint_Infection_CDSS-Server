@@ -1,7 +1,9 @@
 package com.vietnam.pji.services.agent;
 
 import com.vietnam.pji.dto.request.AiChatRequestDTO;
+import com.vietnam.pji.dto.request.AiAntibioticCarePlanRequestDTO;
 import com.vietnam.pji.dto.request.AiRecommendationGenerateRequestDTO;
+import com.vietnam.pji.dto.response.AiAntibioticCarePlanResponseDTO;
 import com.vietnam.pji.dto.response.AiChatResponseDTO;
 import com.vietnam.pji.dto.response.AiRecommendationGenerateResponseDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,17 @@ public class AiServiceClient {
                 "/api/v1/process-snapshot",
                 request,
                 AiRecommendationGenerateResponseDTO.class);
+    }
+
+    public AiAntibioticCarePlanResponseDTO generateAntibioticCarePlan(
+            AiAntibioticCarePlanRequestDTO request) {
+        log.info("Calling AI service for antibiotic care plan, requestId={}, episodeId={}",
+                request.getRequestId(), request.getEpisodeId());
+
+        return aiRestTemplate.postForObject(
+                "/api/v1/antibiotic-care-plan",
+                request,
+                AiAntibioticCarePlanResponseDTO.class);
     }
 
     public AiChatResponseDTO chat(AiChatRequestDTO request) {

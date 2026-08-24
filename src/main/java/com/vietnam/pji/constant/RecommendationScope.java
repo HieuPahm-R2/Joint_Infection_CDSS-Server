@@ -20,8 +20,7 @@ public enum RecommendationScope {
             case SURGERY -> Set.of(ItemCategory.SURGERY_PROCEDURE);
             case ANTIBIOTIC -> Set.of(
                     ItemCategory.SYSTEMIC_ANTIBIOTIC,
-                    ItemCategory.LOCAL_ANTIBIOTIC,
-                    ItemCategory.ANTIBIOTIC_CARE_PLAN);
+                    ItemCategory.LOCAL_ANTIBIOTIC);
             case LEGACY_COMBINED -> Set.of(
                     ItemCategory.SYSTEMIC_ANTIBIOTIC,
                     ItemCategory.LOCAL_ANTIBIOTIC,

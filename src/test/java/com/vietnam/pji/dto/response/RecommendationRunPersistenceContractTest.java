@@ -33,8 +33,7 @@ class RecommendationRunPersistenceContractTest {
         assertThat(RecommendationScope.ANTIBIOTIC.requiredItemCategories())
                 .containsExactlyInAnyOrder(
                         ItemCategory.SYSTEMIC_ANTIBIOTIC,
-                        ItemCategory.LOCAL_ANTIBIOTIC,
-                        ItemCategory.ANTIBIOTIC_CARE_PLAN);
+                        ItemCategory.LOCAL_ANTIBIOTIC);
     }
 
     @Test
