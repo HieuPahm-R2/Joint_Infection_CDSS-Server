@@ -60,15 +60,16 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final RecommendationAccessService recommendationAccessService;
 
     @Override
-    public AiRecommendationRunDetailDTO generateRecommendation(Long episodeId, TriggerType triggerType) {
-        recommendationAccessService.assertCanAccessEpisode(episodeId);
+    public AiRecommendationRunDetailDTO generateRecommendation(Long episodeId, TriggerType triggerType,
+            RecommendationScope recommendationScope) {
+        recommendationAccessService.assertCanGenerateEpisode(episodeId, recommendationScope);
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
         // TX1: Build snapshot + create run
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
-        AiRecommendationRun run = createRun(episode, snapshot, triggerType);
+        AiRecommendationRun run = createRun(episode, snapshot, triggerType, recommendationScope);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
         saveRuleBasedDiagnostic(run.getId(), diagnostic);
@@ -81,6 +82,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             AiRecommendationGenerateRequestDTO request = AiRecommendationGenerateRequestDTO.builder()
                     .requestId(requestId)
                     .triggerType(triggerType.name())
+                    .recommendationScope(recommendationScope.name())
                     .episodeId(episodeId)
                     .snapshotId(snapshot.getId())
                     .snapshotDataJson(buildResult.getSnapshotDataJson())
@@ -100,15 +102,16 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     }
 
     @Override
-    public AiRecommendationRunDetailDTO generateRecommendationAsync(Long episodeId, TriggerType triggerType) {
-        recommendationAccessService.assertCanAccessEpisode(episodeId);
+    public AiRecommendationRunDetailDTO generateRecommendationAsync(Long episodeId, TriggerType triggerType,
+            RecommendationScope recommendationScope) {
+        recommendationAccessService.assertCanGenerateEpisode(episodeId, recommendationScope);
         PjiEpisode episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
         // Build snapshot + create run (same as sync)
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
         CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
-        AiRecommendationRun run = createRun(episode, snapshot, triggerType);
+        AiRecommendationRun run = createRun(episode, snapshot, triggerType, recommendationScope);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
         saveRuleBasedDiagnostic(run.getId(), diagnostic);
@@ -120,6 +123,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 .episodeId(episodeId)
                 .snapshotId(snapshot.getId())
                 .triggerType(triggerType.name())
+                .recommendationScope(recommendationScope.name())
                 .snapshotDataJson(buildResult.getSnapshotDataJson())
                 .ruleBasedDiagnosis(RuleBasedDiagnosisDTO.from(diagnostic))
                 .options(Map.of("language", "vi", "include_citations", true, "top_k", 5))
@@ -136,7 +140,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Override
     public PjiDiagnosticRuleEngine.DiagnosticResult evaluateRuleBasedDiagnostic(Long episodeId) {
-        recommendationAccessService.assertCanAccessEpisode(episodeId);
+        recommendationAccessService.assertCanReviewEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
@@ -166,7 +170,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     @Transactional
     protected AiRecommendationRun createRun(PjiEpisode episode, CaseClinicalSnapshot snapshot,
-            TriggerType triggerType) {
+            TriggerType triggerType, RecommendationScope recommendationScope) {
         int nextRunNo = runRepository.findMaxRunNoByEpisodeId(episode.getId()) + 1;
 
         AiRecommendationRun run = AiRecommendationRun.builder()
@@ -174,6 +178,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 .snapshot(snapshot)
                 .runNo(nextRunNo)
                 .triggerType(triggerType)
+                .recommendationScope(recommendationScope)
                 .status(RunStatus.PROCESSING)
                 .requestId(UUID.randomUUID().toString())
                 .createdByUserId(SecurityUtils.getCurrentUserId())
@@ -223,6 +228,22 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             run.setErrorMessage("AI response missing required items");
             runRepository.save(run);
             throw new RuntimeException("AI response validation failed: missing items");
+        }
+
+        RecommendationScope scope = run.getRecommendationScope() == null
+                ? RecommendationScope.LEGACY_COMBINED
+                : run.getRecommendationScope();
+        List<ItemCategory> receivedCategories = response.getItems().stream()
+                .map(item -> parseCategory(item.getCategory()))
+                .filter(Objects::nonNull)
+                .toList();
+        if (receivedCategories.size() != response.getItems().size()
+                || receivedCategories.size() != scope.requiredItemCategories().size()
+                || !new HashSet<>(receivedCategories).equals(scope.requiredItemCategories())) {
+            run.setStatus(RunStatus.FAILED);
+            run.setErrorMessage("AI response categories do not match recommendation scope " + scope.name());
+            runRepository.save(run);
+            throw new BusinessException(run.getErrorMessage());
         }
 
         // Update run
@@ -304,7 +325,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     @Override
     @Transactional(readOnly = true)
     public AiRecommendationRunDetailDTO getRunDetail(Long runId) {
-        recommendationAccessService.assertCanAccessRun(runId);
+        recommendationAccessService.assertCanReviewRun(runId);
         // Check cache for terminal runs
         try {
             String cached = redisService.getCachedRunDetail(runId);
@@ -410,7 +431,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     @Override
     @Transactional(readOnly = true)
     public PaginationResultDTO getRunHistory(Long episodeId, Pageable pageable) {
-        recommendationAccessService.assertCanAccessEpisode(episodeId);
+        recommendationAccessService.assertCanReviewEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
@@ -446,7 +467,10 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             throw new IllegalStateException("Can only retry FAILED or TIMEOUT runs");
         }
 
-        return generateRecommendation(existingRun.getEpisode().getId(), existingRun.getTriggerType());
+        return generateRecommendation(
+                existingRun.getEpisode().getId(),
+                existingRun.getTriggerType(),
+                existingRun.getRecommendationScope());
     }
 
     // Long enough to outlast any plausible run; the row is durable so the

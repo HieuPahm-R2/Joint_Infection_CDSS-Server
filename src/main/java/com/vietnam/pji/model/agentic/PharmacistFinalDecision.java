@@ -44,6 +44,10 @@ public class PharmacistFinalDecision extends AbstractEntity<Long> {
     @Column(name = "local_antibiotic_plan_json", columnDefinition = "jsonb")
     private Map<String, Object> localAntibioticPlanJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "care_plan_json", columnDefinition = "jsonb")
+    private Map<String, Object> carePlanJson;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

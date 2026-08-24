@@ -3,6 +3,7 @@ package com.vietnam.pji.dto.response;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.constant.ItemCategory;
+import com.vietnam.pji.constant.RecommendationScope;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -21,7 +22,19 @@ class RecommendationRunPersistenceContractTest {
                 .containsExactlyInAnyOrder(
                         "SYSTEMIC_ANTIBIOTIC",
                         "SURGERY_PROCEDURE",
-                        "LOCAL_ANTIBIOTIC");
+                        "LOCAL_ANTIBIOTIC",
+                        "ANTIBIOTIC_CARE_PLAN");
+    }
+
+    @Test
+    void recommendationScopeOwnsItsExactOutputContract() {
+        assertThat(RecommendationScope.SURGERY.requiredItemCategories())
+                .containsExactly(ItemCategory.SURGERY_PROCEDURE);
+        assertThat(RecommendationScope.ANTIBIOTIC.requiredItemCategories())
+                .containsExactlyInAnyOrder(
+                        ItemCategory.SYSTEMIC_ANTIBIOTIC,
+                        ItemCategory.LOCAL_ANTIBIOTIC,
+                        ItemCategory.ANTIBIOTIC_CARE_PLAN);
     }
 
     @Test

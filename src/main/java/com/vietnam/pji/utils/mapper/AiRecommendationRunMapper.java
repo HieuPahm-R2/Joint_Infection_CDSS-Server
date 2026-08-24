@@ -21,6 +21,7 @@ public interface AiRecommendationRunMapper {
     @Mapping(target = "episodeId", source = "episode.id")
     @Mapping(target = "snapshotId", source = "snapshot.id")
     @Mapping(target = "triggerType", source = "triggerType", qualifiedByName = "enumToString")
+    @Mapping(target = "recommendationScope", source = "recommendationScope", qualifiedByName = "enumToString")
     @Mapping(target = "status", source = "status", qualifiedByName = "enumToString")
     AiRecommendationRunDTO toDto(AiRecommendationRun run);
 

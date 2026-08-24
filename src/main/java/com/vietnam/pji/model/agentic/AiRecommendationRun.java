@@ -2,6 +2,7 @@ package com.vietnam.pji.model.agentic;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.vietnam.pji.constant.RunStatus;
+import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.TriggerType;
 import com.vietnam.pji.model.AbstractEntity;
 import com.vietnam.pji.model.medical.PjiEpisode;
@@ -38,6 +39,11 @@ public class AiRecommendationRun extends AbstractEntity<Long> {
     @Enumerated(EnumType.STRING)
     @Column(name = "trigger_type", length = 30)
     private TriggerType triggerType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recommendation_scope", nullable = false, length = 30)
+    @Builder.Default
+    private RecommendationScope recommendationScope = RecommendationScope.LEGACY_COMBINED;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)

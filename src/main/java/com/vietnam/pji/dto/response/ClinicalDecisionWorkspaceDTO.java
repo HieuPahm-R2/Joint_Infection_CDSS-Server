@@ -19,6 +19,8 @@ public class ClinicalDecisionWorkspaceDTO implements Serializable {
 
     private Long episodeId;
     private Long finalRunId;
+    private Long finalDoctorRunId;
+    private Long finalPharmacistRunId;
     private List<RunDecision> runs;
 
     @Data
@@ -72,6 +74,7 @@ public class ClinicalDecisionWorkspaceDTO implements Serializable {
         private Actor author;
         private Map<String, Object> systemicAntibioticPlanJson;
         private Map<String, Object> localAntibioticPlanJson;
+        private Map<String, Object> carePlanJson;
         private String notes;
         private Instant signedAt;
         private Long revision;

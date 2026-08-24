@@ -27,6 +27,7 @@ public class AiRecommendationRunDTO implements Serializable {
     private Long snapshotId;
     private Integer runNo;
     private String triggerType;
+    private String recommendationScope;
     private String status;
     private String modelName;
     private String modelVersion;

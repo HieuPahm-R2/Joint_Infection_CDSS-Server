@@ -14,6 +14,8 @@ public class PharmacistClinicalDecisionRequestDTO {
 
     private Map<String, Object> localAntibioticPlanJson;
 
+    private Map<String, Object> carePlanJson;
+
     private String notes;
 
     @NotNull

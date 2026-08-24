@@ -129,6 +129,24 @@ public class RabbitMQConsumer {
             return;
         }
 
+        RecommendationScope scope = run.getRecommendationScope() == null
+                ? RecommendationScope.LEGACY_COMBINED
+                : run.getRecommendationScope();
+        List<ItemCategory> receivedCategories = result.getItems().stream()
+                .map(item -> parseCategory(item.getCategory()))
+                .filter(Objects::nonNull)
+                .toList();
+        if (receivedCategories.size() != result.getItems().size()
+                || receivedCategories.size() != scope.requiredItemCategories().size()
+                || !new HashSet<>(receivedCategories).equals(scope.requiredItemCategories())) {
+            run.setStatus(RunStatus.FAILED);
+            run.setErrorMessage("AI response categories do not match recommendation scope " + scope.name());
+            runRepository.save(run);
+            streamController.closeRun(run.getId(), "FAILED");
+            notifyRunFinished(run, false, run.getErrorMessage());
+            return;
+        }
+
         if (dropIfCancellationRequested(run, "before saving AI result")) {
             return;
         }

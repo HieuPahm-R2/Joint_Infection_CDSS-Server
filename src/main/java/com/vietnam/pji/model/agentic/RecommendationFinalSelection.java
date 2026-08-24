@@ -2,6 +2,7 @@ package com.vietnam.pji.model.agentic;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vietnam.pji.model.AbstractEntity;
+import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import jakarta.persistence.*;
@@ -18,8 +19,8 @@ import java.time.Instant;
 @Table(name = "recommendation_final_selections")
 public class RecommendationFinalSelection extends AbstractEntity<Long> {
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "episode_id", nullable = false)
     @JsonIgnore
     private PjiEpisode episode;
 
@@ -27,6 +28,11 @@ public class RecommendationFinalSelection extends AbstractEntity<Long> {
     @JoinColumn(name = "run_id", nullable = false, unique = true)
     @JsonIgnore
     private AiRecommendationRun run;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recommendation_scope", nullable = false, length = 30)
+    @Builder.Default
+    private RecommendationScope recommendationScope = RecommendationScope.LEGACY_COMBINED;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "selected_by_user_id", nullable = false)

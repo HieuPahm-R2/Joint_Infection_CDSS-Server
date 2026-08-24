@@ -23,6 +23,7 @@ public class RabbitMQRecommendationMessage implements Serializable {
     private Long episodeId;
     private Long snapshotId;
     private String triggerType;
+    private String recommendationScope;
     private Long requestedBy;
 
     /** Full clinical snapshot — required by the Python RAG worker to process. */

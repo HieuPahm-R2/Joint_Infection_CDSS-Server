@@ -6,6 +6,10 @@ Date: 2026-08-23
 
 Accepted
 
+The combined-run final-selection rule is superseded for new scoped runs by
+[Decision 0006](0006-role-scoped-treatment-recommendations.md). It remains in
+force for `LEGACY_COMBINED` history.
+
 ## Context
 
 AI recommendation runs contain surgery, systemic-antibiotic, and

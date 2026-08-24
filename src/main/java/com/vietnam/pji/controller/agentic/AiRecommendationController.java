@@ -1,6 +1,7 @@
 package com.vietnam.pji.controller.agentic;
 
 import com.vietnam.pji.constant.TriggerType;
+import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.dto.response.AiRecommendationRunDetailDTO;
 import com.vietnam.pji.dto.response.PaginationResultDTO;
 import com.vietnam.pji.dto.response.ResponseData;
@@ -52,11 +53,14 @@ public class AiRecommendationController {
                         @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
                         @ApiResponse(responseCode = "404", description = "Episode not found")
         })
-        public ResponseData<AiRecommendationRunDetailDTO> generateRecommendation(@PathVariable Long episodeId) {
+        public ResponseData<AiRecommendationRunDetailDTO> generateRecommendation(
+                        @PathVariable Long episodeId,
+                        @RequestParam(defaultValue = "SURGERY") RecommendationScope scope) {
                 return new ResponseData<>(HttpStatus.ACCEPTED.value(),
                                 "Recommendation job submitted — poll GET /ai-recommendations/runs/{runId} for result",
                                 aiRecommendationService.generateRecommendationAsync(episodeId,
-                                                TriggerType.MANUAL_GENERATE));
+                                                TriggerType.MANUAL_GENERATE,
+                                                scope));
         }
 
         /**
@@ -73,9 +77,13 @@ public class AiRecommendationController {
                         @ApiResponse(responseCode = "500", description = "AI service call failed or timed out")
         })
         public ResponseData<AiRecommendationRunDetailDTO> generateRecommendationSync(
-                        @PathVariable Long episodeId) {
+                        @PathVariable Long episodeId,
+                        @RequestParam(defaultValue = "SURGERY") RecommendationScope scope) {
                 return new ResponseData<>(HttpStatus.OK.value(), "Recommendation generated successfully",
-                                aiRecommendationService.generateRecommendation(episodeId, TriggerType.MANUAL_GENERATE));
+                                aiRecommendationService.generateRecommendation(
+                                                episodeId,
+                                                TriggerType.MANUAL_GENERATE,
+                                                scope));
         }
 
         @GetMapping("/episodes/{episodeId}/ai-recommendations/runs")
