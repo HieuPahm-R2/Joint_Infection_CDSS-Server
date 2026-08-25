@@ -311,8 +311,7 @@ public class RabbitMQConsumer {
         String recordDisplay = medicalRecordCode != null && !medicalRecordCode.isBlank()
                 ? medicalRecordCode
                 : (episodeId != null ? "#" + episodeId : "");
-        String linkUrl = "/?runId=" + run.getId()
-                + (episodeId != null ? "&episodeId=" + episodeId : "");
+        String linkUrl = buildRecommendationLink(run, episodeId);
         try {
             if (success) {
                 String title = "Phân tích PJI hoàn tất - " + patientName;
@@ -348,6 +347,14 @@ public class RabbitMQConsumer {
             // Notification failure must not break the result-saving transaction.
             log.warn("Failed to create notification for runId={}: {}", run.getId(), e.getMessage());
         }
+    }
+
+    static String buildRecommendationLink(AiRecommendationRun run, Long episodeId) {
+        String pathname = run.getRecommendationScope() == RecommendationScope.ANTIBIOTIC
+                ? "/antibiotic-planner"
+                : "/";
+        return pathname + "?runId=" + run.getId()
+                + (episodeId != null ? "&episodeId=" + episodeId : "");
     }
 
     private ItemCategory parseCategory(String category) {
