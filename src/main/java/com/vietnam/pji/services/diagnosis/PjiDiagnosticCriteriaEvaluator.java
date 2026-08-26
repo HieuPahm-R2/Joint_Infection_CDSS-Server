@@ -32,25 +32,39 @@ class PjiDiagnosticCriteriaEvaluator {
                 : "Không ghi nhận đường rò thông với khớp giả.");
     }
 
-    List<CriterionScore> evaluateMinorCriteria(Map<String, Object> snapshot,
+    CriteriaEvaluation evaluateMinorCriteria(Map<String, Object> snapshot,
             PjiCultureEvidenceEvaluator.CultureEvidence culture) {
         ClinicalPhase phase = clinicalPhase(snapshot);
+        if (phase == ClinicalPhase.UNKNOWN) {
+            List<CriterionScore> preoperative = List.of(
+                    unknownCriterion("Serum CRP hoặc D-Dimer", 2, "Chưa xác định giai đoạn cấp/mạn để chọn ngưỡng."),
+                    unknownCriterion("Tốc độ máu lắng ESR", 1, "Chưa xác định giai đoạn cấp/mạn để chọn ngưỡng."),
+                    unknownCriterion("Synovial WBC, Leukocyte Esterase hoặc Alpha-Defensin", 3,
+                            "Chưa xác định giai đoạn cấp/mạn để chọn ngưỡng."),
+                    unknownCriterion("Synovial PMN%", 2, "Chưa xác định giai đoạn cấp/mạn để chọn ngưỡng."));
+            return new CriteriaEvaluation(preoperative,
+                    List.of(evaluateSinglePositiveCulture(culture), evaluateHistology(snapshot), evaluatePurulence(snapshot)),
+                    phase);
+        }
         double wbcThreshold = phase == ClinicalPhase.ACUTE ? 10_000.0 : 3_000.0;
-        double pmnThreshold = phase == ClinicalPhase.ACUTE ? 90.0 : 70.0;
-        List<CriterionScore> scores = new ArrayList<>();
-        scores.add(evaluateSerumCrpOrDimer(snapshot, phase));
-        scores.add(phase == ClinicalPhase.ACUTE
+        double pmnThreshold = phase == ClinicalPhase.ACUTE ? 90.0 : 80.0;
+        List<CriterionScore> preoperative = new ArrayList<>();
+        preoperative.add(evaluateSerumCrpOrDimer(snapshot, phase));
+        preoperative.add(phase == ClinicalPhase.ACUTE
                 ? new CriterionScore("Tốc độ máu lắng ESR (không áp dụng cho ca cấp)", null, 1, false,
-                        "ICM không sử dụng ESR để chấm điểm ca cấp.", 0)
+                        "Không chấm ESR ở hồ sơ ngưỡng cấp đề xuất.", 0, false)
                 : evaluateNumericLab(snapshot, "serum_ESR", "Tốc độ máu lắng tăng ESR (>30 mm/h)", 1, 30.0, "mm/h"));
-        scores.add(evaluateSynovialWbcLeOrAlphaDefensin(snapshot, wbcThreshold));
-        scores.add(evaluateNumericLab(snapshot, "synovial_PMN",
+        preoperative.add(evaluateSynovialWbcLeOrAlphaDefensin(snapshot, wbcThreshold));
+        preoperative.add(evaluateNumericLab(snapshot, "synovial_PMN",
                 "Synovial PMN% (>" + snapshotReader.formatNumber(pmnThreshold) + "% - " + phase.label() + ")",
                 2, pmnThreshold, "%"));
-        scores.add(evaluateSinglePositiveCulture(culture));
-        scores.add(evaluateHistology(snapshot));
-        scores.add(evaluatePurulence(snapshot));
-        return scores;
+        List<CriterionScore> intraoperative = List.of(
+                evaluateSinglePositiveCulture(culture), evaluateHistology(snapshot), evaluatePurulence(snapshot));
+        return new CriteriaEvaluation(preoperative, intraoperative, phase);
+    }
+
+    private CriterionScore unknownCriterion(String criterion, int weight, String detail) {
+        return new CriterionScore(criterion, null, weight, null, detail, 0);
     }
 
     private CriterionScore evaluateSerumCrpOrDimer(Map<String, Object> snapshot, ClinicalPhase phase) {
@@ -70,7 +84,9 @@ class PjiDiagnosticCriteriaEvaluator {
                 : dDimerNgMl != null ? "D-Dimer = " + snapshotReader.formatNumber(dDimerNgMl) + " ng/mL FEU"
                         + (dDimerPositive ? " (>860)" : " (≤860)")
                         : "D-Dimer: chưa có dữ liệu");
-        Boolean result = snapshotReader.anyPositiveOrNull(crpPositive, dDimerPositive);
+        Boolean result = phase == ClinicalPhase.ACUTE
+                ? crpPositive
+                : snapshotReader.anyPositiveOrUnknown(crpPositive, dDimerPositive);
         return new CriterionScore("Serum CRP (>" + snapshotReader.formatNumber(crpThreshold)
                 + " mg/L)" + (phase == ClinicalPhase.CHRONIC ? " hoặc D-Dimer (>860 ng/mL)" : ""), null, 2, result,
                 String.join("; ", details), Boolean.TRUE.equals(result) ? 2 : 0);
@@ -115,7 +131,7 @@ class PjiDiagnosticCriteriaEvaluator {
         details.add(alpha != null ? "Alpha-Defensin = " + alpha.value()
                 + (Boolean.TRUE.equals(alphaPositive) ? " (dương tính, cutoff ≥1.0)" : " (âm tính/không đạt cutoff 1.0)")
                 : "Alpha-Defensin: chưa có dữ liệu");
-        Boolean result = snapshotReader.anyPositiveOrNull(wbcPositive, lePositive, alphaPositive);
+        Boolean result = snapshotReader.anyPositiveOrUnknown(wbcPositive, lePositive, alphaPositive);
         return new CriterionScore("Synovial WBC (>" + snapshotReader.formatNumber(wbcThreshold)
                 + " cells/µL), Leukocyte Esterase (≥++) hoặc Alpha-Defensin (signal/cutoff ≥1.0)", null, 3,
                 result, String.join("; ", details), Boolean.TRUE.equals(result) ? 3 : 0);
@@ -127,8 +143,15 @@ class PjiDiagnosticCriteriaEvaluator {
                 .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "onset_timing"))
                 .orElse(null);
         String normalized = PjiDiagnosticSnapshotReader.normalizeToken(raw);
-        return Set.of("early", "acute", "acutepostoperative", "acutehematogenous", "earlypostoperative")
-                .contains(normalized) ? ClinicalPhase.ACUTE : ClinicalPhase.CHRONIC;
+        if (Set.of("early", "acute", "acutepostoperative", "acutehematogenous", "earlypostoperative")
+                .contains(normalized)) {
+            return ClinicalPhase.ACUTE;
+        }
+        if (Set.of("chronic", "delayed", "delayedsubacute", "late", "latechronic")
+                .contains(normalized)) {
+            return ClinicalPhase.CHRONIC;
+        }
+        return ClinicalPhase.UNKNOWN;
     }
 
     String infectionClassification(Map<String, Object> snapshot) {
@@ -136,16 +159,21 @@ class PjiDiagnosticCriteriaEvaluator {
     }
 
     private CriterionScore evaluateSinglePositiveCulture(PjiCultureEvidenceEvaluator.CultureEvidence culture) {
-        Boolean result = culture.positiveCount() > 0 && !culture.majorCriteriaMet();
+        Boolean result = culture.performed() == Boolean.TRUE
+                ? culture.positiveCount() == 1 && !culture.majorCriteriaMet()
+                : null;
         String detail;
-        if (culture.positiveCount() == 0) {
-            detail = culture.totalCultureCount() == 0 ? "Chưa có dữ liệu nuôi cấy." : "Không có mẫu nuôi cấy dương tính.";
+        if (culture.performed() != Boolean.TRUE) {
+            detail = "Chưa thực hiện hoặc chưa có dữ liệu nuôi cấy.";
+        } else if (culture.positiveCount() == 0) {
+            detail = culture.totalCultureCount() == 0 ? "Chưa có kết quả nuôi cấy đọc được." : "Không có mẫu nuôi cấy dương tính.";
         } else if (culture.majorCriteriaMet()) {
             detail = "Không chấm điểm phụ vì đã thỏa tiêu chí chính với ≥2 mẫu cùng tác nhân.";
             result = false;
         } else {
             detail = culture.positiveCount() == 1 ? "Có 1 mẫu nuôi cấy dương tính: " + culture.organismSummary() + "."
-                    : "Có nhiều mẫu dương tính nhưng chưa thỏa điều kiện cùng tác nhân: " + culture.organismSummary() + ".";
+                    : "Có nhiều mẫu dương tính khác tác nhân; không tự quy thành tiêu chí một mẫu dương tính: "
+                            + culture.organismSummary() + ".";
         }
         return new CriterionScore("1 mẫu nuôi cấy dương tính đơn lẻ", null, 2, result, detail,
                 Boolean.TRUE.equals(result) ? 2 : 0);
@@ -216,7 +244,8 @@ class PjiDiagnosticCriteriaEvaluator {
 
     private enum ClinicalPhase {
         ACUTE("ca cấp"),
-        CHRONIC("ca mạn");
+        CHRONIC("ca mạn"),
+        UNKNOWN("chưa xác định");
 
         private final String label;
 
@@ -229,8 +258,26 @@ class PjiDiagnosticCriteriaEvaluator {
         }
     }
 
+    record CriteriaEvaluation(List<CriterionScore> preoperative, List<CriterionScore> intraoperative,
+            ClinicalPhase phase) {
+        List<CriterionScore> all() {
+            List<CriterionScore> all = new ArrayList<>(preoperative);
+            all.addAll(intraoperative);
+            return all;
+        }
+
+        boolean acute() {
+            return phase == ClinicalPhase.ACUTE;
+        }
+    }
+
     record CriterionScore(String criterion, String criterionVi, int scoreWeight, Boolean result,
-            String resultDetail, int scoreAwarded) {
+            String resultDetail, int scoreAwarded, boolean applicable) {
+        CriterionScore(String criterion, String criterionVi, int scoreWeight, Boolean result,
+                String resultDetail, int scoreAwarded) {
+            this(criterion, criterionVi, scoreWeight, result, resultDetail, scoreAwarded, true);
+        }
+
         Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("criterion", criterion);
@@ -241,6 +288,7 @@ class PjiDiagnosticCriteriaEvaluator {
             map.put("result", result);
             map.put("result_detail", resultDetail);
             map.put("score_awarded", scoreAwarded);
+            map.put("applicable", applicable);
             return map;
         }
     }

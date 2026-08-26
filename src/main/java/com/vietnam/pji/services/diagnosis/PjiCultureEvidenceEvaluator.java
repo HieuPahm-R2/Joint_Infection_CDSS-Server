@@ -22,6 +22,10 @@ class PjiCultureEvidenceEvaluator {
     CultureEvidence evaluate(Map<String, Object> snapshot) {
         Object cultureItems = snapshotReader.getNested(snapshot, "culture_results", "items").orElse(null);
         List<?> rawItems = cultureItems instanceof List<?> list ? list : List.of();
+        Boolean explicitPerformed = snapshotReader.getNested(snapshot, "culture_results", "performed")
+                .map(snapshotReader::asBoolean).orElse(null);
+        Boolean performed = explicitPerformed != null ? explicitPerformed
+                : cultureItems instanceof List<?> ? Boolean.TRUE : null;
         Map<String, Integer> counts = new HashMap<>();
         Map<String, String> displayNames = new HashMap<>();
         Map<String, List<Map<String, Object>>> sensitivitiesByOrganism = new HashMap<>();
@@ -64,16 +68,17 @@ class PjiCultureEvidenceEvaluator {
         List<Map<String, Object>> sensitivities = topKey != null
                 ? sensitivitiesByOrganism.getOrDefault(topKey, List.of()) : List.of();
         boolean major = topCount >= 2;
-        String majorDetail = rawItems.isEmpty() ? "Chưa có dữ liệu nuôi cấy."
+        String majorDetail = performed != Boolean.TRUE ? "Chưa có dữ liệu nuôi cấy."
+                : rawItems.isEmpty() ? "Đã ghi nhận thực hiện nuôi cấy nhưng chưa có kết quả đọc được."
                 : major ? topCount + " mẫu nuôi cấy dương tính cùng tác nhân: " + topOrganism + "."
                 : positiveCount > 0 ? positiveCount + " mẫu dương tính nhưng chưa có ≥2 mẫu cùng tác nhân ("
                         + String.join(", ", positiveOrganisms) + ")."
                 : "Có dữ liệu nuôi cấy nhưng không có mẫu dương tính.";
-        return new CultureEvidence(rawItems.size(), positiveCount, topCount, major, majorDetail,
+        return new CultureEvidence(performed, rawItems.size(), positiveCount, topCount, major, majorDetail,
                 topOrganism, positiveOrganisms, sensitivities, antibioticsBefore);
     }
 
-    record CultureEvidence(int totalCultureCount, int positiveCount, int topOrganismPositiveCount,
+    record CultureEvidence(Boolean performed, int totalCultureCount, int positiveCount, int topOrganismPositiveCount,
             boolean majorCriteriaMet, String majorDetail, String topOrganism, List<String> positiveOrganisms,
             List<Map<String, Object>> sensitivities, boolean antibioticsBefore) {
         String organismSummary() {

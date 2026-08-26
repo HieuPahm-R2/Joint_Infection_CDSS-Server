@@ -92,17 +92,17 @@ class PjiDiagnosticSnapshotReader {
         return normalized.equals("positive") || normalized.equals("duongtinh") || normalized.equals("pos");
     }
 
-    Boolean anyPositiveOrNull(Boolean... values) {
-        boolean sawData = false;
+    Boolean anyPositiveOrUnknown(Boolean... values) {
+        boolean sawUnknown = false;
         for (Boolean value : values) {
             if (value == Boolean.TRUE) {
                 return true;
             }
-            if (value != null) {
-                sawData = true;
+            if (value == null) {
+                sawUnknown = true;
             }
         }
-        return sawData ? false : null;
+        return sawUnknown ? null : false;
     }
 
     Boolean qualitativePositive(Object rawValue, Double numeric, double numericThreshold) {

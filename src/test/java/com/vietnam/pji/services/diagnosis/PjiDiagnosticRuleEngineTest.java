@@ -1,5 +1,6 @@
 package com.vietnam.pji.services.diagnosis;
 
+import com.vietnam.pji.dto.request.PjiDiagnosticEvaluationRequestDTO;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -22,7 +23,7 @@ class PjiDiagnosticRuleEngineTest {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
                 "clinical_records", Map.of(
                         "symptoms", Map.of("sinus_tract", false),
-                        "infection_assessment", Map.of("prosthesis_joint", "HIP_RIGHT")),
+                        "infection_assessment", Map.of("prosthesis_joint", "HIP_RIGHT", "onset_timing", "CHRONIC")),
                 "lab_results", Map.of(
                         "esr", Map.of("value", 18, "unit", "mm/h"),
                         "crp", Map.of("value", 95.3, "unit", "mg/L"),
@@ -67,7 +68,7 @@ class PjiDiagnosticRuleEngineTest {
                 "esr", Map.of("value", 50, "unit", "mm/h"),
                 "d_dimer", Map.of("value", 1, "unit", "mg/L FEU"),
                 "synovial_wbc", Map.of("value", 5000, "unit", "cells/µL"),
-                "synovial_pmn", Map.of("value", 80, "unit", "%"),
+                "synovial_pmn", Map.of("value", 81, "unit", "%"),
                 "alpha_defensin", Map.of("value", 0.5));
 
         PjiDiagnosticRuleEngine.DiagnosticResult acute = engine.evaluate(Map.of(
@@ -75,7 +76,9 @@ class PjiDiagnosticRuleEngineTest {
                         "symptoms", Map.of("sinus_tract", true),
                         "infection_assessment", Map.of("onset_timing", "EARLY")),
                 "lab_results", labs));
-        PjiDiagnosticRuleEngine.DiagnosticResult chronic = engine.evaluate(Map.of("lab_results", labs));
+        PjiDiagnosticRuleEngine.DiagnosticResult chronic = engine.evaluate(Map.of(
+                "clinical_records", Map.of("infection_assessment", Map.of("onset_timing", "CHRONIC")),
+                "lab_results", labs));
 
         assertEquals(0, map(acute.itemJson().get("scoring_system")).get("total_score"));
         assertEquals(8, map(chronic.itemJson().get("scoring_system")).get("total_score"));
@@ -90,13 +93,17 @@ class PjiDiagnosticRuleEngineTest {
     @Test
     void evaluateCapsReferenceTableMinorCriteriaAtSixteenPoints() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "clinical_records", Map.of("symptoms", Map.of("sinus_tract", false)),
+                "clinical_records", Map.of(
+                        "symptoms", Map.of("sinus_tract", false),
+                        "infection_assessment", Map.of("onset_timing", "CHRONIC")),
                 "lab_results", Map.of(
                         "crp", Map.of("value", 11, "unit", "mg/L"),
+                        "d_dimer", Map.of("value", 900, "unit", "ng/mL FEU"),
                         "esr", Map.of("value", 31, "unit", "mm/h"),
                         "synovial_wbc", Map.of("value", 3001, "unit", "cells/µL"),
-                        "synovial_pmn", Map.of("value", 71, "unit", "%"),
-                        "alpha_defensin", Map.of("value", 1.0)),
+                        "synovial_pmn", Map.of("value", 81, "unit", "%"),
+                        "alpha_defensin", Map.of("value", 1.0),
+                        "leukocyte_esterase", Map.of("value", "++")),
                 "culture_results", Map.of("items", List.of(
                         Map.of("organism_name", "Staphylococcus epidermidis", "result_status", "POSITIVE"))),
                 "surgeries", Map.of("items", List.of(Map.of(
@@ -176,30 +183,103 @@ class PjiDiagnosticRuleEngineTest {
     }
 
     @Test
-    void evaluateDoesNotEstimateDataCompletenessOrClassifyNonInfectedCases() {
+    void evaluateNeverClassifiesMissingEvidenceAsNotInfected() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of());
 
         Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
         Map<String, Object> reasoning = map(result.itemJson().get("ai_reasoning"));
 
-        assertEquals("NOT_INFECTED", scoring.get("interpretation"));
-        assertEquals("Không có bằng chứng nhiễm trùng khớp nhân tạo (PJI)", scoring.get("interpretation_label"));
-        assertEquals("Điểm tiêu chí phụ ≤3, chưa ủng hộ PJI theo dữ liệu hiện có.", scoring.get("confidence_note"));
+        assertEquals("INCOMPLETE", scoring.get("interpretation"));
+        assertEquals("Dữ liệu chưa đủ để phân loại PJI", scoring.get("interpretation_label"));
+        assertEquals("Chưa đủ dữ liệu bắt buộc; không được diễn giải điểm thiếu như bằng chứng âm tính.", scoring.get("confidence_note"));
         assertEquals("NOT_APPLICABLE", reasoning.get("infection_classification"));
-        assertFalse(reasoning.containsKey("warnings"));
+        Map<String, Object> completeness = map(result.itemJson().get("data_completeness"));
+        assertFalse((Boolean) completeness.get("is_complete"));
+        assertFalse(((List<?>) completeness.get("missing_evidence")).isEmpty());
     }
 
     @Test
     void evaluateLocalizesInconclusiveConclusion() {
-        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "lab_results", Map.of("crp", Map.of("value", 11, "unit", "mg/L")),
-                "culture_results", Map.of("items", List.of(
-                        Map.of("organism_name", "Staphylococcus epidermidis", "result_status", "POSITIVE")))));
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(new PjiDiagnosticEvaluationRequestDTO(
+                true, false, true, "singlePositive", 120,
+                new PjiDiagnosticEvaluationRequestDTO.SerumTests(10.0, 11.0, 200.0),
+                new PjiDiagnosticEvaluationRequestDTO.SynovialTests(500.0, 40.0),
+                "negative", "negative", "negative", "negative"));
 
         Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
 
         assertEquals("INCONCLUSIVE", scoring.get("interpretation"));
         assertEquals("Chưa kết luận được nhiễm trùng khớp nhân tạo (PJI)", scoring.get("interpretation_label"));
+    }
+
+    @Test
+    void statelessEvaluationHandlesEligibilityAndCompleteNegativeEvidence() {
+        PjiDiagnosticRuleEngine.DiagnosticResult notApplicable = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(false, null, null, null, null,
+                        null, null, null, null, null, null));
+        assertEquals("NOT_APPLICABLE",
+                map(notApplicable.itemJson().get("scoring_system")).get("interpretation"));
+
+        PjiDiagnosticRuleEngine.DiagnosticResult negative = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(true, false, true, "negative", 120,
+                        new PjiDiagnosticEvaluationRequestDTO.SerumTests(10.0, 2.0, 200.0),
+                        new PjiDiagnosticEvaluationRequestDTO.SynovialTests(500.0, 40.0),
+                        "negative", "negative", "notDone", "notDone"));
+        assertEquals("NOT_INFECTED", map(negative.itemJson().get("scoring_system")).get("interpretation"));
+        assertTrue((Boolean) map(negative.itemJson().get("data_completeness")).get("is_complete"));
+    }
+
+    @Test
+    void acuteProfileIsExplicitlyLimitedAndUsesStrictPmnThreshold() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(true, false, true, "negative", 30,
+                        new PjiDiagnosticEvaluationRequestDTO.SerumTests(null, 20.0, null),
+                        new PjiDiagnosticEvaluationRequestDTO.SynovialTests(500.0, 90.0),
+                        "negative", "negative", "notDone", "notDone"));
+
+        Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
+        Map<String, Object> completeness = map(result.itemJson().get("data_completeness"));
+        assertEquals(0, scoring.get("preoperative_score"));
+        assertEquals("NOT_INFECTED", scoring.get("interpretation"));
+        assertFalse(((List<?>) completeness.get("limitations")).isEmpty());
+    }
+
+    @Test
+    void multipleDifferentOrganismsDoNotReceiveSingleCulturePoints() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(true, false, true, "multipleDifferentOrganisms", 120,
+                        new PjiDiagnosticEvaluationRequestDTO.SerumTests(10.0, 2.0, 200.0),
+                        new PjiDiagnosticEvaluationRequestDTO.SynovialTests(500.0, 40.0),
+                        "negative", "negative", "negative", "negative"));
+
+        assertEquals(0, map(result.itemJson().get("scoring_system")).get("combined_score"));
+        assertEquals("NOT_INFECTED", map(result.itemJson().get("scoring_system")).get("interpretation"));
+    }
+
+    @Test
+    void chronicCutoffsAreStrictAndBoundaryValuesRemainNegative() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(true, false, true, "negative", 90,
+                        new PjiDiagnosticEvaluationRequestDTO.SerumTests(30.0, 10.0, 860.0),
+                        new PjiDiagnosticEvaluationRequestDTO.SynovialTests(3000.0, 80.0),
+                        "negative", "negative", "notDone", "notDone"));
+
+        Map<String, Object> scoring = map(result.itemJson().get("scoring_system"));
+        assertEquals(0, scoring.get("preoperative_score"));
+        assertEquals("NOT_INFECTED", scoring.get("interpretation"));
+    }
+
+    @Test
+    void absentCultureEvidencePreventsDefinitiveNegativeConclusion() {
+        PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(
+                new PjiDiagnosticEvaluationRequestDTO(true, false, false, null, 120,
+                        new PjiDiagnosticEvaluationRequestDTO.SerumTests(10.0, 2.0, 200.0),
+                        new PjiDiagnosticEvaluationRequestDTO.SynovialTests(500.0, 40.0),
+                        "negative", "negative", "notDone", "notDone"));
+
+        assertEquals("INCOMPLETE", map(result.itemJson().get("scoring_system")).get("interpretation"));
+        assertTrue(((List<?>) map(result.itemJson().get("data_completeness")).get("missing_evidence"))
+                .contains("major.culture_results"));
     }
 
     @SuppressWarnings("unchecked")
