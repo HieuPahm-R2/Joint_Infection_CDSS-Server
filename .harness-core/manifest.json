@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "core_version": "0.1.7",
+  "core_version": "0.1.10",
   "files": [
     {
       "path": "AGENTS.md",
-      "upstream_sha256": "07dcdd653335d02bd49e1371d2ecc9f3d89250fcc5041c8ad01f8bba543e17a9"
+      "upstream_sha256": "9fd64b3abf40b47c5d82fc27a461c6fdd9f425044acf8d928df301452ad0c2d3"
     },
     {
       "path": ".agents/skills/audit-onboarding-proposal/SKILL.md",
-      "upstream_sha256": "8aa6e5d75743f747818a72cb2376efea9971882c23ebaaee18489095cad5f53e"
+      "upstream_sha256": "3f895e263138db826f56daed985331333faf9d7e827cac598b4c75d4d5e0cb29"
     },
     {
       "path": ".agents/skills/audit-onboarding-proposal/agents/openai.yaml",
@@ -16,11 +16,27 @@
     },
     {
       "path": ".agents/skills/audit-onboarding-proposal/scripts/validate_evidence_capsule.py",
-      "upstream_sha256": "9ea918717fa72f9040e851d93c3e9783a6e0100a94d23bec0d31a96f63859cb0"
+      "upstream_sha256": "80282a4e260dab314c417a5ee2d2f62aec747989343b7afb0d7f2dd7a7f1fc9a"
+    },
+    {
+      "path": ".agents/skills/encode-invariant/SKILL.md",
+      "upstream_sha256": "53643e98c60fac0cec76bdcd6282c67f53afbd0ba843461dc4286c748d0d243e"
+    },
+    {
+      "path": ".agents/skills/encode-invariant/agents/openai.yaml",
+      "upstream_sha256": "480be69346c2af2d8f6f381692add09a71593dc6746b8b1cd603412e40e75f2a"
+    },
+    {
+      "path": ".agents/skills/improve-harness/SKILL.md",
+      "upstream_sha256": "bcd87cb7775a3f2969b47e36f95b4ee4731714eec2fc3016778ce559d4cb15dd"
+    },
+    {
+      "path": ".agents/skills/improve-harness/agents/openai.yaml",
+      "upstream_sha256": "77982c7e2c70c3becb5076c2ce10eefb49ada39f53ed01da930f092fe6d263c5"
     },
     {
       "path": ".agents/skills/onboard-repository/SKILL.md",
-      "upstream_sha256": "6e74d8918d352e66cfbfb3f74afd16a832917fe3f360bd983f381c2429550b51"
+      "upstream_sha256": "15647f0019d8bbeb8696417f241ca0c406df3c2a0b6f9eb5fca03ac153ba64c3"
     },
     {
       "path": ".agents/skills/onboard-repository/agents/openai.yaml",
@@ -28,55 +44,67 @@
     },
     {
       "path": ".agents/skills/onboard-repository/references/evidence-capsule-v1.md",
-      "upstream_sha256": "b9e1f9208842e725289469d0976b3e65670a30ee7f69be6d799cf4ba2a19fadb"
+      "upstream_sha256": "f13dd3a8cc3593d332a54091b0b715fe1b7cf48096cf9f5a4b749b5fd0653cd1"
     },
     {
       "path": ".agents/skills/onboard-repository/references/evidence-capsule-v2.md",
-      "upstream_sha256": "e91ef78922e3a196e966a7e60ae53e4894617668887abf165b293d147fb88737"
+      "upstream_sha256": "5dac39c70eb869a81d655b312347fe29aa376394163d65d25c49b0da0831ee0a"
     },
     {
       "path": ".agents/skills/onboard-repository/scripts/emit_evidence_bundle.py",
-      "upstream_sha256": "30583170ed4764b9ee3a147bc6e02ebce5095600a292688b9411825404f9e13f"
+      "upstream_sha256": "dc0669e4cc053b81fab6ccf89c9b8eb68f555404bb47e90747f1256b2820da76"
     },
     {
       "path": ".agents/skills/onboard-repository/scripts/render_patch.py",
-      "upstream_sha256": "9e6b5c4b148e78171695ab964757e792d2a67b32517d08ad113df8de2da9cb38"
+      "upstream_sha256": "5032b2a473895a9add532040e6ec38ef37806347c708044f8baccf8c67ea5e57"
     },
     {
       "path": "docs/WORKFLOW.md",
-      "upstream_sha256": "08ccd7a062d38a566b6f24631a501ba848e64ac31c6fcdb3b03e1abe2de313e8"
+      "upstream_sha256": "1ffb0940195aadb0314f80d376023974ad89d63b5983040748f1a9b291b5abd1"
     },
     {
       "path": "docs/README.md",
-      "upstream_sha256": "89974a19e4ff3fe833ff764ad252a7756580be55bf489dc5ba68d7f71e316e65"
+      "upstream_sha256": "9f51a96fc3c62cd5483512fb501aee40c3801afdbfc318ad298cc9c52fbba6f0"
+    },
+    {
+      "path": "docs/patterns/encoding-invariants.md",
+      "upstream_sha256": "22f77be9570f2fe160029df405f8c4096e091a76ea119286b1d78e592c4aa93f"
     },
     {
       "path": "docs/product/README.md",
-      "upstream_sha256": "8d1834591efccd4267f475905d32d26d9ba3a6c9d78acf2805bf69af48cb6c01"
+      "upstream_sha256": "0c9a8acac1ef62f7b3aaba3d063a35013f05b4308a16dbc26e3c1cbe407edb0a"
     },
     {
       "path": "docs/plans/README.md",
-      "upstream_sha256": "99a8461fc62f09c966c2c4c5bd2b62ea32cda1e18f8d70f7c939b5dd4b2c68e5"
+      "upstream_sha256": "bd4ed9623d81bcf614b3476c5be1d72f3f9f1cb6e5301342680f71f8fd8b976b"
     },
     {
       "path": "docs/plans/active/README.md",
-      "upstream_sha256": "aec64998a72585b2a9c4c8909c7ed775c396c4c2e39c71b0ce4ee6e392784160"
+      "upstream_sha256": "a7e31f51ed20ff032e3fe1eca921d5bf76838c11636cb9387e996b8d08b210ea"
     },
     {
       "path": "docs/plans/completed/README.md",
-      "upstream_sha256": "1ba887f4fb54b7aa45e3f4f619d4b2dfa1eb63d52c09fbbd9588598862346dc7"
+      "upstream_sha256": "bb30420bf45a9b0c18de8350727debf730d1b7beadd026e5126943e2ade90a62"
     },
     {
       "path": "docs/decisions/README.md",
-      "upstream_sha256": "521abd46ee1291dfe13a500664f6046723c0f8360728501da434c0292ed92b2b"
+      "upstream_sha256": "46bab599431d5ee6c9aa54bdcaba62fc6b8fb8ced10677c569d8abd08eb7a047"
+    },
+    {
+      "path": "docs/templates/application-runbook.md",
+      "upstream_sha256": "297b1260d52306cec399d03222aa25954710a83a8767cd23a29690f7812323b3"
     },
     {
       "path": "docs/templates/decision.md",
-      "upstream_sha256": "e92ba7a5b7bc10ce6c213af75a191619fc305c3945cdd55d4dc6bac72dcd42c1"
+      "upstream_sha256": "6e0e645d09bebf8db1bb43498950dbecd1924cef13367bcefa7488c6297f25f3"
     },
     {
       "path": "docs/templates/exec-plan.md",
-      "upstream_sha256": "111c40ea8ab63a03561fdb54f235358546788b3a4e1bb26f220da8db50db92b9"
+      "upstream_sha256": "2dcb127cf7910d3ea9d095663d1613ceeff79e168e206bac442bad1fe59c54b8"
+    },
+    {
+      "path": "docs/templates/harness-improvement.md",
+      "upstream_sha256": "bd54aecfb46e732b7ccc3a2c2daf6e4eab55ea86620b7ebd8fddba4ae4741116"
     }
   ]
 }
