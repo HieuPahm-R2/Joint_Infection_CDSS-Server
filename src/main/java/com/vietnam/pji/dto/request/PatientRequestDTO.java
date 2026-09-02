@@ -7,6 +7,7 @@ import com.vietnam.pji.utils.validators.EnumPattern;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,8 +33,12 @@ public class PatientRequestDTO {
     @EnumPattern(name = "gender", regexp = "MALE|FEMALE|OTHER")
     private GenderEnum gender;
 
+    @NotBlank(message = "identityCard must not be blank")
+    @Pattern(regexp = "\\d{12}", message = "identityCard must contain exactly 12 digits")
     private String identityCard;
 
+    @NotBlank(message = "insuranceNumber must not be blank")
+    @Pattern(regexp = "(?:\\d{15}|[A-Za-z0-9]{10})", message = "insuranceNumber must contain 15 digits or 10 alphanumeric characters for legacy cards")
     private String insuranceNumber;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

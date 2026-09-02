@@ -45,8 +45,7 @@ public class DatabaseInitializer implements CommandLineRunner {
         public void run(String... args) {
                 System.out.println(">>>>>>>>> INITIAL DATABASE BEGINS:");
                 long countPermission = this.permissionRepository.count();
-                long countRole = this.roleRepository.count();
-                long countUser = this.userRepository.count();
+                boolean initialized = false;
 
                 if (countPermission == 0) {
                         ArrayList<Permission> arrResult = new ArrayList<>();
@@ -224,42 +223,51 @@ public class DatabaseInitializer implements CommandLineRunner {
                                         "/api/v1/extract-images/jobs/{jobId}", "GET", "EXTRACT_IMAGES"));
 
                         this.permissionRepository.saveAll(arrResult);
+                        initialized = true;
                 }
 
-                if (countRole == 0) {
+                Role adminRole = this.roleRepository.findByName("ADMIN");
+                if (adminRole == null) {
                         List<Permission> permissions = this.permissionRepository.findAll();
 
-                        Role initRole = new Role();
-                        initRole.setName("ADMIN");
-                        initRole.setDescription("Contain full of permissions on this web service");
-                        initRole.setActive(true);
-                        initRole.setPermissions(permissions);
+                        adminRole = new Role();
+                        adminRole.setName("ADMIN");
+                        adminRole.setDescription("Contain full of permissions on this web service");
+                        adminRole.setActive(true);
+                        adminRole.setPermissions(permissions);
 
-                        this.roleRepository.save(initRole);
+                        this.roleRepository.save(adminRole);
+                        initialized = true;
                 }
 
-                if (countUser == 0 && bootstrapAdminEnabled) {
-                        if (bootstrapAdminPassword == null || bootstrapAdminPassword.isBlank()) {
-                                throw new IllegalStateException(
-                                                "app.bootstrap-admin.password must be configured when bootstrap admin is enabled");
-                        }
+                if (bootstrapAdminEnabled) {
+                        User bootstrapAdmin = this.userRepository.findByEmail(bootstrapAdminEmail);
 
-                        User initUser = new User();
-                        initUser.setFullName(bootstrapAdminFullName);
-                        initUser.setEmail(bootstrapAdminEmail);
-                        initUser.setPassword(this.passwordEncoder.encode(bootstrapAdminPassword));
+                        if (bootstrapAdmin == null) {
+                                if (bootstrapAdminPassword == null || bootstrapAdminPassword.isBlank()) {
+                                        throw new IllegalStateException(
+                                                        "app.bootstrap-admin.password must be configured when bootstrap admin is enabled");
+                                }
 
-                        Role userRole = this.roleRepository.findByName("ADMIN");
-                        if (userRole != null) {
-                                initUser.setRole(userRole);
+                                bootstrapAdmin = new User();
+                                bootstrapAdmin.setFullName(bootstrapAdminFullName);
+                                bootstrapAdmin.setEmail(bootstrapAdminEmail);
+                                bootstrapAdmin.setPassword(this.passwordEncoder.encode(bootstrapAdminPassword));
+                                bootstrapAdmin.setRole(adminRole);
+
+                                this.userRepository.save(bootstrapAdmin);
+                                initialized = true;
+                        } else if (bootstrapAdmin.getRole() == null) {
+                                bootstrapAdmin.setRole(adminRole);
+                                this.userRepository.save(bootstrapAdmin);
+                                initialized = true;
                         }
-                        this.userRepository.save(initUser);
                 }
 
-                if (countRole > 0 && countPermission > 0 && countUser > 0) {
-                        System.out.println("SKIP INITIAL DATABASE");
-                } else {
+                if (initialized) {
                         System.out.println("END TASK");
+                } else {
+                        System.out.println("SKIP INITIAL DATABASE");
                 }
         }
 }

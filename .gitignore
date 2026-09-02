@@ -30,9 +30,21 @@ build/
 !**/src/test/**/build/
 CLAUDE.md
 feature.txt
+
+.codex
+
+
+.claude/hooks/
+.claude/settings.json
+.claude/skills/onehammer-forge/
+.claude/skills/onehammer-plan/
+.claude/skills/onehammer-review/
+.mcp.json
 ### VS Code ###
 .vscode/
 
 # Harness core maintenance binary
 scripts/bin/harness
 scripts/bin/harness.exe
+.harness-upgrade-backup/
+.harness-backup/
