@@ -45,7 +45,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private static final long RUN_DETAIL_CACHE_TTL = 1800; // 30 minutes
 
     private final EpisodeRepository episodeRepository;
-    private final CaseClinicalSnapshotRepository snapshotRepository;
     private final AiRecommendationRunRepository runRepository;
     private final AiRecommendationItemRepository itemRepository;
     private final AiRagCitationRepository citationRepository;
@@ -58,21 +57,26 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final RedisService redisService;
     private final AiRecommendationRunMapper runMapper;
     private final RecommendationAccessService recommendationAccessService;
+    private final RecommendationRunCreator recommendationRunCreator;
 
     @Override
     public AiRecommendationRunDetailDTO generateRecommendation(Long episodeId, TriggerType triggerType,
             RecommendationScope recommendationScope) {
         recommendationAccessService.assertCanGenerateEpisode(episodeId, recommendationScope);
-        PjiEpisode episode = episodeRepository.findById(episodeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
-        // TX1: Build snapshot + create run
+        // Create durable input in a short transaction before calling AI.
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
-        CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
-        AiRecommendationRun run = createRun(episode, snapshot, triggerType, recommendationScope);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
-        saveRuleBasedDiagnostic(run.getId(), diagnostic);
+        RecommendationRunCreator.CreatedRecommendationRun created = recommendationRunCreator.create(
+                episodeId,
+                buildResult,
+                diagnostic,
+                triggerType,
+                recommendationScope,
+                SecurityUtils.getCurrentUserId());
+        CaseClinicalSnapshot snapshot = created.snapshot();
+        AiRecommendationRun run = created.run();
 
         String requestId = run.getRequestId();
 
@@ -105,16 +109,20 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     public AiRecommendationRunDetailDTO generateRecommendationAsync(Long episodeId, TriggerType triggerType,
             RecommendationScope recommendationScope) {
         recommendationAccessService.assertCanGenerateEpisode(episodeId, recommendationScope);
-        PjiEpisode episode = episodeRepository.findById(episodeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
-        // Build snapshot + create run (same as sync)
+        // Create durable input in a short transaction before publishing the job.
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
-        CaseClinicalSnapshot snapshot = createSnapshot(episode, buildResult);
-        AiRecommendationRun run = createRun(episode, snapshot, triggerType, recommendationScope);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
-        saveRuleBasedDiagnostic(run.getId(), diagnostic);
+        RecommendationRunCreator.CreatedRecommendationRun created = recommendationRunCreator.create(
+                episodeId,
+                buildResult,
+                diagnostic,
+                triggerType,
+                recommendationScope,
+                SecurityUtils.getCurrentUserId());
+        CaseClinicalSnapshot snapshot = created.snapshot();
+        AiRecommendationRun run = created.run();
 
         // Publish to RabbitMQ — Python worker will process asynchronously
         RabbitMQRecommendationMessage message = RabbitMQRecommendationMessage.builder()
@@ -129,7 +137,14 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 .options(Map.of("language", "vi", "include_citations", true, "top_k", 5))
                 .build();
 
-        rabbitMQPublisher.publishRecommendationJob(message);
+        try {
+            rabbitMQPublisher.publishRecommendationJob(message);
+        } catch (RuntimeException exception) {
+            log.error("Failed to publish async recommendation job: requestId={}, runId={}",
+                    run.getRequestId(), run.getId(), exception);
+            handleAiError(run.getId(), exception);
+            throw exception;
+        }
 
         log.info("Published async recommendation job: requestId={}, runId={}, episodeId={}",
                 run.getRequestId(), run.getId(), episodeId);
@@ -148,64 +163,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         return diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
     }
 
-    @Transactional
-    protected CaseClinicalSnapshot createSnapshot(PjiEpisode episode, SnapshotBuildResult buildResult) {
-        int nextSnapshotNo = snapshotRepository.findMaxSnapshotNoByEpisodeId(episode.getId()) + 1;
-
-        CaseClinicalSnapshot snapshot = CaseClinicalSnapshot.builder()
-                .episode(episode)
-                .snapshotNo(nextSnapshotNo)
-                .dataCompletenessScore(buildResult.getCompletenessScore())
-                .build();
-
-        try {
-            snapshot.setSnapshotDataJson(objectMapper.writeValueAsString(buildResult.getSnapshotDataJson()));
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize snapshot data", e);
-            throw new RuntimeException("Failed to serialize snapshot data", e);
-        }
-
-        return snapshotRepository.save(snapshot);
-    }
-
-    @Transactional
-    protected AiRecommendationRun createRun(PjiEpisode episode, CaseClinicalSnapshot snapshot,
-            TriggerType triggerType, RecommendationScope recommendationScope) {
-        int nextRunNo = runRepository.findMaxRunNoByEpisodeId(episode.getId()) + 1;
-
-        AiRecommendationRun run = AiRecommendationRun.builder()
-                .episode(episode)
-                .snapshot(snapshot)
-                .runNo(nextRunNo)
-                .triggerType(triggerType)
-                .recommendationScope(recommendationScope)
-                .status(RunStatus.PROCESSING)
-                .requestId(UUID.randomUUID().toString())
-                .createdByUserId(SecurityUtils.getCurrentUserId())
-                .build();
-
-        return runRepository.save(run);
-    }
-
-    @Transactional
-    protected RuleBasedDiagnosticResult saveRuleBasedDiagnostic(
-            Long runId,
-            PjiDiagnosticRuleEngine.DiagnosticResult diagnostic) {
-        AiRecommendationRun run = runRepository.findById(runId)
-                .orElseThrow(() -> new ResourceNotFoundException("Run not found: " + runId));
-
-        RuleBasedDiagnosticResult result = RuleBasedDiagnosticResult.builder()
-                .run(run)
-                .title(diagnostic.title())
-                .itemJson(diagnostic.itemJson())
-                .assessmentJson(diagnostic.assessmentJson())
-                .explanationJson(diagnostic.explanationJson())
-                .build();
-        return diagnosticResultRepository.save(result);
-    }
-
-    @Transactional
-    protected void handleAiError(Long runId, Exception e) {
+    private void handleAiError(Long runId, Exception e) {
         AiRecommendationRun run = runRepository.findById(runId).orElse(null);
         if (run != null) {
             boolean isTimeout = e.getMessage() != null && e.getMessage().toLowerCase().contains("timeout");
