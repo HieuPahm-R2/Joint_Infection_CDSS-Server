@@ -4,7 +4,7 @@ Date: 2026-09-16
 
 ## Status
 
-Blocked
+Active
 
 ## Outcome
 
@@ -59,6 +59,9 @@ Out of scope:
 - [x] Complete architecture and runtime audits.
 - [x] Apply and validate low-risk performance and maintainability improvements.
 - [x] Run repository tests and record results.
+- [x] Make recommendation-run creation atomic per episode and persist publish failures.
+- [x] Separate AI chat database transactions from external AI I/O.
+- [x] Defer notification SSE fan-out until its database transaction commits.
 - [ ] Choose the delivery, deployment, and input-limit policies needed for the
   remaining P0/P1 work.
 
@@ -73,19 +76,30 @@ Out of scope:
   whole keyspace.
 - 2026-09-16: Keep clinical-decision tests aligned with accepted scoped-run
   semantics (Decision 0006) and the legacy compatibility branch (Decision 0005).
+- 2026-09-16: Serialize recommendation snapshot/run numbering by locking the
+  episode row in `RecommendationRunCreator`; commit durable input before AI or
+  RabbitMQ I/O.
+- 2026-09-16: Preserve chat failure semantics (no messages persisted when AI
+  fails) while using separate short prepare/write transactions around the AI
+  HTTP call.
+- 2026-09-16: Defer notification SSE fan-out until `afterCommit`; an SSE event
+  must never advertise a notification row that can still roll back.
 
 ## Validation
 
 - Focused proof: `RedisServiceImplTest`, `EpisodeAggregateServiceImplTest`, and
-  `ClinicalDecisionServiceImplTest` passed after a clean compilation.
+  `ClinicalDecisionServiceImplTest` passed after a clean compilation; P0
+  regression tests cover recommendation-creation locking, broker publish
+  failure, and chat persistence ordering.
 - Integration or end-to-end proof: existing Spring test coverage where available.
-- Repository-required checks: `./mvnw.cmd test` passed: 79 tests, 0 failures,
+- Repository-required checks: `./mvnw.cmd test` passed: 84 tests, 0 failures,
   0 errors, 0 skipped (2026-09-16).
 
 ## Result
 
-Implemented and verified the safe low-risk subset. The following findings need
-an owner decision before they can be safely changed: transactional outbox and
+Implemented and verified the source-supported P0 subset plus commit-safe
+notification fan-out. The following findings need an owner decision before they
+can be safely changed: transactional outbox and
 retry semantics for recommendation jobs; cross-replica SSE routing and capacity
 policy; extract-images file/aggregate limits or object-storage hand-off;
 maximum page sizes and snapshot-retention policy; and production secret/default

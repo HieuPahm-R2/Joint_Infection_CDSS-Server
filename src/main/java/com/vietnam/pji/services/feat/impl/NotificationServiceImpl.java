@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -59,10 +61,22 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification saved = notificationRepository.save(entity);
         NotificationResponseDTO dto = notificationMapper.toResponse(saved);
-        // Push to any active SSE stream after the row is committed; if no
-        // listener is connected this is a cheap no-op.
-        streamController.push(userId, dto);
+        pushAfterCommit(userId, dto);
         return dto;
+    }
+
+    private void pushAfterCommit(Long userId, NotificationResponseDTO dto) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            streamController.push(userId, dto);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                streamController.push(userId, dto);
+            }
+        });
     }
 
     @Override
