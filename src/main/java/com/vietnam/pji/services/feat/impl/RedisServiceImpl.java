@@ -2,13 +2,16 @@ package com.vietnam.pji.services.feat.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import com.vietnam.pji.services.feat.RedisService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -24,6 +27,8 @@ public class RedisServiceImpl implements RedisService {
     private static final String RUN_DETAIL_KEY_PREFIX = "run_detail:v2:";
     private static final String ACTIVE_SESSION_KEY_PREFIX = "auth:active_session:";
     private static final String CANCEL_RUN_KEY_PREFIX = "cancel:run:";
+    private static final int PERMISSION_CACHE_SCAN_COUNT = 1_000;
+    private static final int PERMISSION_CACHE_DELETE_BATCH_SIZE = 500;
 
     @Override
     public void saveRefreshToken(String email, String refreshToken, long expirationTimeInSeconds) {
@@ -99,10 +104,30 @@ public class RedisServiceImpl implements RedisService {
 
     @Override
     public void evictAllUserPermissions() {
-        Set<String> keys = redisTemplate.keys(USER_PERMISSIONS_KEY_PREFIX + "*");
-        if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
-            log.info("Evicted {} user permission cache entries", keys.size());
+        List<String> keysToDelete = new ArrayList<>(PERMISSION_CACHE_DELETE_BATCH_SIZE);
+        long evicted = 0;
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(USER_PERMISSIONS_KEY_PREFIX + "*")
+                .count(PERMISSION_CACHE_SCAN_COUNT)
+                .build();
+
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                keysToDelete.add(cursor.next());
+                if (keysToDelete.size() == PERMISSION_CACHE_DELETE_BATCH_SIZE) {
+                    redisTemplate.delete(keysToDelete);
+                    evicted += keysToDelete.size();
+                    keysToDelete.clear();
+                }
+            }
+            if (!keysToDelete.isEmpty()) {
+                redisTemplate.delete(keysToDelete);
+                evicted += keysToDelete.size();
+            }
+        }
+
+        if (evicted > 0) {
+            log.info("Evicted {} user permission cache entries", evicted);
         }
     }
 

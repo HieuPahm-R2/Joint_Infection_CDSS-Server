@@ -82,7 +82,7 @@ class ClinicalDecisionServiceImplTest {
     }
 
     @Test
-    void secondPharmacistCannotOverwriteClaimedDraft() {
+    void nonOwnerPharmacistCannotWriteTheRunOwnersDecision() {
         AiRecommendationRun run = run(7L, 11L);
         User owner = user(31L, "owner.pharmacist@example.test", "PHARMACIST");
         User other = user(32L, "other.pharmacist@example.test", "PHARMACIST");
@@ -104,12 +104,12 @@ class ClinicalDecisionServiceImplTest {
 
             assertThatThrownBy(() -> service.savePharmacistDecision(7L, request))
                     .isInstanceOf(ForbiddenException.class)
-                    .hasMessageContaining("another user");
+                    .hasMessageContaining("created this AI run");
         }
     }
 
     @Test
-    void finalRunRequiresBothSignedDecisions() {
+    void legacyCombinedRunRequiresBothSignedDecisions() {
         AiRecommendationRun run = run(7L, 11L);
         User doctor = user(11L, "doctor@example.test", "DOCTOR");
         DoctorFinalDecision doctorDraft = DoctorFinalDecision.builder()
@@ -134,7 +134,7 @@ class ClinicalDecisionServiceImplTest {
 
             assertThatThrownBy(() -> service.selectFinalRun(91L, 7L))
                     .isInstanceOf(InvalidDataException.class)
-                    .hasMessageContaining("Both doctor and pharmacist decisions must be signed");
+                    .hasMessageContaining("Both legacy decisions must be signed");
         }
     }
 

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -188,14 +189,13 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
         }
 
         // 6. lab_results
-        Optional<LabResult> latestLabOpt = labResultRepository.findFirstByEpisodeIdOrderByCreatedAtDesc(episodeId);
-        if (latestLabOpt.isPresent()) {
-            LabResult latest = latestLabOpt.get();
+        List<LabResult> trends = labResultRepository.findTop5ByEpisodeIdOrderByCreatedAtDesc(episodeId);
+        if (!trends.isEmpty()) {
+            LabResult latest = trends.get(0);
             Map<String, Object> labResults = new LinkedHashMap<>();
             labResults.put("latest", buildLabResultMap(latest));
 
             // historical trends
-            List<LabResult> trends = labResultRepository.findTop5ByEpisodeIdOrderByCreatedAtDesc(episodeId);
             if (trends.size() > 1) {
                 List<Map<String, Object>> trendList = new ArrayList<>();
                 // Skip the first (latest) one since it's already in "latest"
@@ -240,6 +240,13 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
         // 8. culture_results with nested sensitivities
         List<CultureResult> cultures = cultureResultRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId);
         if (!cultures.isEmpty()) {
+            Map<Long, List<SensitivityResult>> sensitivitiesByCulture = sensitivityResultRepository
+                    .findByCultureIdIn(cultures.stream().map(CultureResult::getId).toList())
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            sensitivity -> sensitivity.getCulture().getId(),
+                            LinkedHashMap::new,
+                            Collectors.toList()));
             List<Map<String, Object>> cultureItems = new ArrayList<>();
             for (CultureResult c : cultures) {
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -254,7 +261,7 @@ public class EpisodeSnapshotAssemblerServiceImpl implements EpisodeSnapshotAssem
                 item.put("notes", c.getNotes());
 
                 // Nest sensitivities
-                List<SensitivityResult> sensitivities = sensitivityResultRepository.findByCultureId(c.getId());
+                List<SensitivityResult> sensitivities = sensitivitiesByCulture.getOrDefault(c.getId(), List.of());
                 if (!sensitivities.isEmpty()) {
                     List<Map<String, Object>> sensList = new ArrayList<>();
                     for (SensitivityResult sr : sensitivities) {

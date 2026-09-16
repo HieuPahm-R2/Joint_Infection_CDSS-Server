@@ -84,9 +84,17 @@ public class EpisodeAggregateServiceImpl implements EpisodeAggregateService {
         PjiEpisode episode = episodeService.getById(episodeId); // throws if missing; inits patient
 
         List<CultureResult> cultures = cultureResultRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId);
-        Map<Long, List<SensitivityResult>> sensitivityMap = new LinkedHashMap<>();
-        for (CultureResult c : cultures) {
-            sensitivityMap.put(c.getId(), sensitivityResultRepository.findByCultureId(c.getId()));
+        Map<Long, List<SensitivityResult>> sensitivityMap = cultures.stream()
+                .collect(Collectors.toMap(
+                        CultureResult::getId,
+                        ignored -> new ArrayList<>(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        if (!cultures.isEmpty()) {
+            sensitivityResultRepository.findByCultureIdIn(cultures.stream().map(CultureResult::getId).toList())
+                    .forEach(sensitivity -> sensitivityMap
+                            .get(sensitivity.getCulture().getId())
+                            .add(sensitivity));
         }
 
         return EpisodeFullResponseDTO.builder()
