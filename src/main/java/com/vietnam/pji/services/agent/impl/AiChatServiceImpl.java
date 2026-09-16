@@ -1,9 +1,6 @@
 package com.vietnam.pji.services.agent.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.constant.ChatType;
-import com.vietnam.pji.dto.request.AiChatRequestDTO;
 import com.vietnam.pji.dto.request.CreateChatSessionRequestDTO;
 import com.vietnam.pji.dto.request.SendChatMessageRequestDTO;
 import com.vietnam.pji.dto.response.AiChatResponseDTO;
@@ -19,7 +16,6 @@ import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.AiChatService;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,9 +24,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,9 +36,9 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiRecommendationRunRepository runRepository;
     private final AiRecommendationItemRepository itemRepository;
     private final AiServiceClient aiServiceClient;
-    private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
-    private final ObjectMapper objectMapper;
     private final RecommendationAccessService recommendationAccessService;
+    private final AiChatTurnPreparer chatTurnPreparer;
+    private final AiChatTurnWriter chatTurnWriter;
 
     @Override
     @Transactional
@@ -96,50 +89,16 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     @Override
-    @Transactional
     public AiChatMessage sendMessage(Long sessionId, SendChatMessageRequestDTO request) {
-        AiChatSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + sessionId));
-        assertCanAccessSession(session);
-
-        // Save user message
-        AiChatMessage userMessage = AiChatMessage.builder()
-                .session(session)
-                .role("user")
-                .content(request.getContent())
-                .build();
-        messageRepository.save(userMessage);
-
-        // Build AI request
-        AiChatRequestDTO aiRequest = buildChatRequest(session, request);
-
-        // Call AI service
-        AiChatResponseDTO aiResponse;
+        AiChatTurnPreparer.PreparedChatTurn prepared = chatTurnPreparer.prepare(sessionId, request);
+        AiChatResponseDTO response;
         try {
-            aiResponse = aiServiceClient.chat(aiRequest);
-        } catch (Exception e) {
-            log.error("AI chat service call failed for sessionId={}", sessionId, e);
-            throw new RuntimeException("AI chat service call failed: " + e.getMessage(), e);
+            response = aiServiceClient.chat(prepared.request());
+        } catch (Exception exception) {
+            log.error("AI chat service call failed for sessionId={}", sessionId, exception);
+            throw new RuntimeException("AI chat service call failed: " + exception.getMessage(), exception);
         }
-
-        // Save assistant message
-        AiChatMessage assistantMessage = AiChatMessage.builder()
-                .session(session)
-                .role("assistant")
-                .content(aiResponse.getAnswer())
-                .latencyMs(aiResponse.getLatencyMs())
-                .tokensUsed(aiResponse.getTokensUsed())
-                .build();
-
-        if (aiResponse.getReferences() != null) {
-            try {
-                assistantMessage.setReferencesJson(objectMapper.writeValueAsString(aiResponse.getReferences()));
-            } catch (JsonProcessingException e) {
-                log.warn("Failed to serialize chat references", e);
-            }
-        }
-
-        return messageRepository.save(assistantMessage);
+        return chatTurnWriter.write(sessionId, request, response);
     }
 
     @Override
@@ -147,7 +106,7 @@ public class AiChatServiceImpl implements AiChatService {
     public PaginationResultDTO getMessages(Long sessionId, Pageable pageable) {
         AiChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + sessionId));
-        assertCanAccessSession(session);
+        chatTurnPreparer.assertCanAccessSession(session);
 
         Page<AiChatMessage> page = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId, pageable);
         page.getContent().forEach(m -> Hibernate.initialize(m.getSession()));
@@ -191,71 +150,6 @@ public class AiChatServiceImpl implements AiChatService {
         result.setMeta(meta);
         result.setResult(page.getContent());
         return result;
-    }
-
-    private AiChatRequestDTO buildChatRequest(AiChatSession session, SendChatMessageRequestDTO request) {
-        AiChatRequestDTO.AiChatRequestDTOBuilder builder = AiChatRequestDTO.builder()
-                .question(request.getContent());
-
-        // Episode context
-        if (request.isUseEpisodeContext() && session.getEpisode() != null) {
-            try {
-                var snapshotResult = snapshotAssemblerService.buildSnapshot(session.getEpisode().getId());
-                builder.episodeSummary(snapshotResult.getSnapshotDataJson());
-            } catch (Exception e) {
-                log.warn("Failed to build episode context for chat, sessionId={}", session.getId(), e);
-            }
-        }
-
-        // Run/item context
-        if (request.isUseRunContext() && session.getRun() != null) {
-            Map<String, Object> recContext = new LinkedHashMap<>();
-            // recContext.put("assessment", session.getRun().getAssessmentJson());
-            if (session.getCurrentItem() != null) {
-                recContext.put("current_item", session.getCurrentItem().getItemJson());
-            }
-            // Include all items for the run
-            List<AiRecommendationItem> items = itemRepository
-                    .findByRunIdOrderByPriorityOrderAsc(session.getRun().getId());
-            List<Map<String, String>> itemSummaries = items.stream()
-                    .map(i -> {
-                        Map<String, String> m = new LinkedHashMap<>();
-                        m.put("category", i.getCategory().name());
-                        m.put("title", i.getTitle());
-                        return m;
-                    })
-                    .collect(Collectors.toList());
-            recContext.put("items", itemSummaries);
-            builder.recommendationContext(recContext);
-        }
-
-        // Chat history (last 20 messages)
-        if (request.isUseChatHistory()) {
-            List<AiChatMessage> recentMessages = messageRepository
-                    .findTop20BySessionIdOrderByCreatedAtDesc(session.getId());
-            Collections.reverse(recentMessages); // oldest first
-            List<AiChatRequestDTO.ChatMessageDTO> history = recentMessages.stream()
-                    .map(m -> AiChatRequestDTO.ChatMessageDTO.builder()
-                            .role(m.getRole())
-                            .content(m.getContent())
-                            .build())
-                    .collect(Collectors.toList());
-            builder.chatHistory(history);
-        }
-
-        return builder.build();
-    }
-
-    private void assertCanAccessSession(AiChatSession session) {
-        if (session.getRun() != null) {
-            recommendationAccessService.assertCanAccessRun(session.getRun().getId());
-            return;
-        }
-        if (session.getEpisode() != null) {
-            recommendationAccessService.assertCanAccessEpisode(session.getEpisode().getId());
-            return;
-        }
-        throw new ForbiddenException("AI chat session is not linked to a medical record");
     }
 
     private ChatType parseChatType(String chatType) {
