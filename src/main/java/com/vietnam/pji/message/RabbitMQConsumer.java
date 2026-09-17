@@ -91,10 +91,11 @@ public class RabbitMQConsumer {
             return;
         }
 
-        // Idempotency: skip if already succeeded
-        if (run.getStatus() == RunStatus.SUCCESS) {
-            log.info("Run {} already SUCCESS, skipping duplicate result", run.getId());
-            streamController.closeRun(run.getId(), "SUCCESS");
+        // First terminal result wins. Outbox delivery is at-least-once, so a
+        // duplicate worker result must not append items or overwrite the outcome.
+        if (isTerminalResultStatus(run.getStatus())) {
+            log.info("Run {} already {}, skipping duplicate result", run.getId(), run.getStatus());
+            streamController.closeRun(run.getId(), run.getStatus().name());
             return;
         }
 
@@ -355,6 +356,14 @@ public class RabbitMQConsumer {
                 : "/";
         return pathname + "?runId=" + run.getId()
                 + (episodeId != null ? "&episodeId=" + episodeId : "");
+    }
+
+    static boolean isTerminalResultStatus(RunStatus status) {
+        return status == RunStatus.SUCCESS
+                || status == RunStatus.PARTIAL
+                || status == RunStatus.FAILED
+                || status == RunStatus.TIMEOUT
+                || status == RunStatus.CANCELLED;
     }
 
     private ItemCategory parseCategory(String category) {

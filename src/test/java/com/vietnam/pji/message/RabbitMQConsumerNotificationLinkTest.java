@@ -1,12 +1,24 @@
 package com.vietnam.pji.message;
 
 import com.vietnam.pji.constant.RecommendationScope;
+import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RabbitMQConsumerNotificationLinkTest {
+
+    @Test
+    void treatsEveryCompletedOutcomeAsIdempotent() {
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.SUCCESS)).isTrue();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.PARTIAL)).isTrue();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.FAILED)).isTrue();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.TIMEOUT)).isTrue();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.CANCELLED)).isTrue();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.PROCESSING)).isFalse();
+        assertThat(RabbitMQConsumer.isTerminalResultStatus(RunStatus.QUEUED)).isFalse();
+    }
 
     @Test
     void routesSurgeryRunsToDoctorWorkflow() {
