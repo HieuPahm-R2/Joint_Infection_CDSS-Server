@@ -12,6 +12,7 @@ the active execution plan and do not require a separate decision.
 - [0004 Remove Recommendation Warnings](0004-remove-recommendation-warnings.md)
 - [0005 Run-scoped Clinical Decisions](0005-run-scoped-clinical-decisions.md)
 - [0006 Role-scoped Treatment Recommendations](0006-role-scoped-treatment-recommendations.md)
+- [0007 Transactional Recommendation Outbox](0007-transactional-recommendation-outbox.md)
 
 An installed consumer begins with no fabricated decisions. Add local decision
 documents here as real choices are accepted, then index them in this file.

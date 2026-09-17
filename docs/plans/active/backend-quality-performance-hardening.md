@@ -62,8 +62,10 @@ Out of scope:
 - [x] Make recommendation-run creation atomic per episode and persist publish failures.
 - [x] Separate AI chat database transactions from external AI I/O.
 - [x] Defer notification SSE fan-out until its database transaction commits.
-- [ ] Choose the delivery, deployment, and input-limit policies needed for the
-  remaining P0/P1 work.
+- [x] Persist recommendation jobs with their runs and dispatch them at-least-once
+  through a transactional outbox.
+- [ ] Choose the deployment and input-limit policies needed for the remaining
+  P1 work.
 
 ## Decisions
 
@@ -84,23 +86,30 @@ Out of scope:
   HTTP call.
 - 2026-09-16: Defer notification SSE fan-out until `afterCommit`; an SSE event
   must never advertise a notification row that can still roll back.
+- 2026-09-17: A `202` async recommendation response means the snapshot, run,
+  diagnosis, and outbox payload committed atomically. Dispatch retries
+  indefinitely with bounded exponential backoff and RabbitMQ confirmation;
+  duplicates remain possible and consumers stay idempotent by run/request ID.
 
 ## Validation
 
 - Focused proof: `RedisServiceImplTest`, `EpisodeAggregateServiceImplTest`, and
   `ClinicalDecisionServiceImplTest` passed after a clean compilation; P0
   regression tests cover recommendation-creation locking, broker publish
-  failure, and chat persistence ordering.
+  failure, and chat persistence ordering. Outbox tests cover atomic payload
+  creation, confirmed delivery, durable retry after publish failure, cancellation,
+  async retry routing, and terminal-result idempotency.
 - Integration or end-to-end proof: existing Spring test coverage where available.
-- Repository-required checks: `./mvnw.cmd test` passed: 84 tests, 0 failures,
-  0 errors, 0 skipped (2026-09-16).
+- Repository-required checks: `./mvnw.cmd test` passed: 92 tests, 0 failures,
+  0 errors, 0 skipped (2026-09-17). The Spring context applied the outbox
+  migration and successfully polled it with `FOR UPDATE SKIP LOCKED`.
 
 ## Result
 
 Implemented and verified the source-supported P0 subset plus commit-safe
-notification fan-out. The following findings need an owner decision before they
-can be safely changed: transactional outbox and
-retry semantics for recommendation jobs; cross-replica SSE routing and capacity
-policy; extract-images file/aggregate limits or object-storage hand-off;
+notification fan-out. Recommendation jobs now use the accepted transactional
+outbox and at-least-once retry semantics. The following findings still need an
+owner decision before they can be safely changed: cross-replica SSE routing and
+capacity policy; extract-images file/aggregate limits or object-storage hand-off;
 maximum page sizes and snapshot-retention policy; and production secret/default
 handling. Keep this plan active only after that direction is available.

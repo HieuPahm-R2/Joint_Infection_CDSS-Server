@@ -189,10 +189,14 @@ Interactive docs are available at `/swagger-ui.html` when running the `dev` prof
 ### AI Recommendation flow (async)
 
 1. Frontend calls `POST /api/v1/episodes/{id}/ai-recommendations/generate`.
-2. Backend validates auth + clinical state, creates a snapshot/run record, returns **`202 ACCEPTED`**, and publishes a RabbitMQ message (`pji.ai.exchange` → `ai.recommendation.generate`).
-3. The `Rag_Agentic` service consumes it, runs completeness checks + multi-agent RAG, and publishes the result back.
-4. Backend consumes the result (`ai.recommendation.result`), updates run status to `SUCCESS` / `PARTIAL` / `FAILED`, and persists recommendation items + citations.
-5. Frontend polls `GET /api/v1/ai-recommendations/runs/{runId}` for status and renders the result.
+2. Backend validates auth + clinical state and atomically stores the snapshot,
+   run, diagnosis, and outbox job before returning **`202 ACCEPTED`**.
+3. The outbox dispatcher publishes the job at-least-once to RabbitMQ
+   (`pji.ai.exchange` → `ai.recommendation.generate`) with confirmation and
+   retries broker failures.
+4. The `Rag_Agentic` service consumes it, runs completeness checks + multi-agent RAG, and publishes the result back.
+5. Backend consumes the result (`ai.recommendation.result`), updates run status to `SUCCESS` / `PARTIAL` / `FAILED`, and persists recommendation items + citations.
+6. Frontend polls `GET /api/v1/ai-recommendations/runs/{runId}` for status and renders the result.
 
 ---
 
