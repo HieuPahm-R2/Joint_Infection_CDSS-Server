@@ -16,9 +16,7 @@ import com.vietnam.pji.repository.ai.AiRagCitationRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.repository.ai.RuleBasedDiagnosticResultRepository;
-import com.vietnam.pji.dto.request.RabbitMQRecommendationMessage;
 import com.vietnam.pji.dto.request.RuleBasedDiagnosisDTO;
-import com.vietnam.pji.message.RabbitMQPublisher;
 import com.vietnam.pji.services.agent.AiRecommendationService;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
@@ -51,7 +49,6 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     private final RuleBasedDiagnosticResultRepository diagnosticResultRepository;
     private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
     private final AiServiceClient aiServiceClient;
-    private final RabbitMQPublisher rabbitMQPublisher;
     private final PjiDiagnosticRuleEngine diagnosticRuleEngine;
     private final ObjectMapper objectMapper;
     private final RedisService redisService;
@@ -114,7 +111,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         SnapshotBuildResult buildResult = snapshotAssemblerService.buildSnapshot(episodeId);
         PjiDiagnosticRuleEngine.DiagnosticResult diagnostic =
                 diagnosticRuleEngine.evaluate(buildResult.getSnapshotDataJson());
-        RecommendationRunCreator.CreatedRecommendationRun created = recommendationRunCreator.create(
+        RecommendationRunCreator.CreatedRecommendationRun created = recommendationRunCreator.createAsync(
                 episodeId,
                 buildResult,
                 diagnostic,
@@ -124,29 +121,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
         CaseClinicalSnapshot snapshot = created.snapshot();
         AiRecommendationRun run = created.run();
 
-        // Publish to RabbitMQ — Python worker will process asynchronously
-        RabbitMQRecommendationMessage message = RabbitMQRecommendationMessage.builder()
-                .requestId(run.getRequestId())
-                .runId(run.getId())
-                .episodeId(episodeId)
-                .snapshotId(snapshot.getId())
-                .triggerType(triggerType.name())
-                .recommendationScope(recommendationScope.name())
-                .snapshotDataJson(buildResult.getSnapshotDataJson())
-                .ruleBasedDiagnosis(RuleBasedDiagnosisDTO.from(diagnostic))
-                .options(Map.of("language", "vi", "include_citations", true, "top_k", 5))
-                .build();
-
-        try {
-            rabbitMQPublisher.publishRecommendationJob(message);
-        } catch (RuntimeException exception) {
-            log.error("Failed to publish async recommendation job: requestId={}, runId={}",
-                    run.getRequestId(), run.getId(), exception);
-            handleAiError(run.getId(), exception);
-            throw exception;
-        }
-
-        log.info("Published async recommendation job: requestId={}, runId={}, episodeId={}",
+        log.info("Persisted async recommendation job: requestId={}, runId={}, episodeId={}",
                 run.getRequestId(), run.getId(), episodeId);
 
         // Return immediately with PROCESSING status — client polls GET /runs/{runId}
@@ -425,7 +400,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             throw new IllegalStateException("Can only retry FAILED or TIMEOUT runs");
         }
 
-        return generateRecommendation(
+        return generateRecommendationAsync(
                 existingRun.getEpisode().getId(),
                 existingRun.getTriggerType(),
                 existingRun.getRecommendationScope());

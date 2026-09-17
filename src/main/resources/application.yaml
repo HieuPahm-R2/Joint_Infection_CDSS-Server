@@ -45,6 +45,8 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
 
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
@@ -129,6 +131,11 @@ app:
       - image/png
       - image/heic
       - image/heif
+  recommendation-outbox:
+    poll-delay-ms: ${RECOMMENDATION_OUTBOX_POLL_DELAY_MS:1000}
+    batch-size: ${RECOMMENDATION_OUTBOX_BATCH_SIZE:10}
+    max-backoff-seconds: ${RECOMMENDATION_OUTBOX_MAX_BACKOFF_SECONDS:60}
+    publisher-confirm-timeout-ms: ${RECOMMENDATION_OUTBOX_PUBLISH_CONFIRM_TIMEOUT_MS:5000}
 
 api:
   prefix: /api/v1

@@ -1,9 +1,7 @@
 package com.vietnam.pji.services.agent.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,7 +16,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.constant.TriggerType;
-import com.vietnam.pji.message.RabbitMQPublisher;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.CaseClinicalSnapshot;
 import com.vietnam.pji.model.medical.PjiEpisode;
@@ -43,7 +40,6 @@ class AiRecommendationServiceImplTest {
     private final RuleBasedDiagnosticResultRepository diagnosticRepository = mock(RuleBasedDiagnosticResultRepository.class);
     private final EpisodeSnapshotAssemblerService snapshotAssembler = mock(EpisodeSnapshotAssemblerService.class);
     private final AiServiceClient aiServiceClient = mock(AiServiceClient.class);
-    private final RabbitMQPublisher publisher = mock(RabbitMQPublisher.class);
     private final PjiDiagnosticRuleEngine ruleEngine = mock(PjiDiagnosticRuleEngine.class);
     private final ObjectMapper objectMapper = mock(ObjectMapper.class);
     private final RedisService redisService = mock(RedisService.class);
@@ -58,7 +54,6 @@ class AiRecommendationServiceImplTest {
             diagnosticRepository,
             snapshotAssembler,
             aiServiceClient,
-            publisher,
             ruleEngine,
             objectMapper,
             redisService,
@@ -67,7 +62,7 @@ class AiRecommendationServiceImplTest {
             runCreator);
 
     @Test
-    void marksRunFailedWhenRabbitPublishFails() {
+    void asyncGenerationPersistsTheOutboxJobWithoutPublishingInline() {
         AiRecommendationRun run = AiRecommendationRun.builder()
                 .episode(PjiEpisode.builder().build())
                 .snapshot(CaseClinicalSnapshot.builder().build())
@@ -82,18 +77,51 @@ class AiRecommendationServiceImplTest {
         var diagnostic = new PjiDiagnosticRuleEngine.DiagnosticResult("Diagnostic", Map.of(), Map.of(), Map.of());
         when(snapshotAssembler.buildSnapshot(7L)).thenReturn(snapshot);
         when(ruleEngine.evaluate(snapshot.getSnapshotDataJson())).thenReturn(diagnostic);
-        when(runCreator.create(any(), any(), any(), any(), any(), any()))
+        when(runCreator.createAsync(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RecommendationRunCreator.CreatedRecommendationRun(run.getSnapshot(), run));
-        when(runRepository.findById(12L)).thenReturn(Optional.of(run));
-        doThrow(new RuntimeException("broker unavailable"))
-                .when(publisher).publishRecommendationJob(any());
 
-        assertThatThrownBy(() -> service.generateRecommendationAsync(
-                7L, TriggerType.MANUAL_GENERATE, RecommendationScope.SURGERY))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("broker unavailable");
+        var result = service.generateRecommendationAsync(
+                7L, TriggerType.MANUAL_GENERATE, RecommendationScope.SURGERY);
 
-        assertThat(run.getStatus()).isEqualTo(RunStatus.FAILED);
-        verify(runRepository).save(run);
+        assertThat(result).isNotNull();
+        assertThat(run.getStatus()).isEqualTo(RunStatus.PROCESSING);
+        verify(runCreator).createAsync(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void retryCreatesANewRunThroughTheAsyncOutboxPath() {
+        PjiEpisode episode = PjiEpisode.builder().build();
+        episode.setId(7L);
+        AiRecommendationRun failedRun = AiRecommendationRun.builder()
+                .episode(episode)
+                .triggerType(TriggerType.MANUAL_GENERATE)
+                .recommendationScope(RecommendationScope.SURGERY)
+                .status(RunStatus.FAILED)
+                .build();
+        failedRun.setId(11L);
+        AiRecommendationRun retryRun = AiRecommendationRun.builder()
+                .episode(episode)
+                .snapshot(CaseClinicalSnapshot.builder().build())
+                .requestId("request-2")
+                .status(RunStatus.PROCESSING)
+                .build();
+        retryRun.setId(12L);
+        var snapshot = EpisodeSnapshotAssemblerService.SnapshotBuildResult.builder()
+                .snapshotDataJson(Map.of("patient", "P-1"))
+                .completenessScore(BigDecimal.TEN)
+                .build();
+        var diagnostic = new PjiDiagnosticRuleEngine.DiagnosticResult(
+                "Diagnostic", Map.of(), Map.of(), Map.of());
+        when(runRepository.findById(11L)).thenReturn(Optional.of(failedRun));
+        when(snapshotAssembler.buildSnapshot(7L)).thenReturn(snapshot);
+        when(ruleEngine.evaluate(snapshot.getSnapshotDataJson())).thenReturn(diagnostic);
+        when(runCreator.createAsync(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RecommendationRunCreator.CreatedRecommendationRun(
+                        retryRun.getSnapshot(), retryRun));
+
+        var result = service.retryRun(11L);
+
+        assertThat(result).isNotNull();
+        verify(runCreator).createAsync(any(), any(), any(), any(), any(), any());
     }
 }
