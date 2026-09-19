@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.vietnam.pji.config.properties.MinioProperties;
 import com.vietnam.pji.config.properties.UploadSessionProperties;
@@ -86,6 +87,35 @@ class UploadSessionServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("does not belong");
         assertThat(repository.created).isFalse();
+    }
+
+    @Test
+    void createDoesNotDeclareReadOnlyTransaction() throws NoSuchMethodException {
+        Transactional transaction = UploadSessionService.class
+                .getMethod("create", Long.class, Long.class, Long.class, String.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transaction).isNull();
+    }
+
+    @Test
+    void createStoresSessionInRepositoryAndReturnsPayload() {
+        Patient episodePatient = new Patient();
+        episodePatient.setId(7L);
+        PjiEpisode episode = new PjiEpisode();
+        episode.setPatient(episodePatient);
+        service = serviceWith(patientService(), episodeRepository(episode));
+
+        var response = service.create(7L, 23L, 99L, "https://example.test");
+
+        assertThat(response).isNotNull();
+        assertThat(response.sessionId()).isNotNull();
+        assertThat(response.qrPayload()).contains("m/upload/" + response.sessionId());
+        assertThat(repository.created).isTrue();
+        assertThat(repository.current).isPresent();
+        assertThat(repository.current.get().patientId()).isEqualTo(7L);
+        assertThat(repository.current.get().episodeId()).isEqualTo(23L);
+        assertThat(repository.current.get().doctorId()).isEqualTo(99L);
     }
 
     @Test

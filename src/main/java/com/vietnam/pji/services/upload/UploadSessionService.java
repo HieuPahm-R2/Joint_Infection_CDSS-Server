@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -65,7 +64,6 @@ public class UploadSessionService {
     private final UploadSessionEventPublisher eventPublisher;
     private final ExtractImagesService extractImagesService;
 
-    @Transactional(readOnly = true)
     public CreateUploadSessionResponseDTO create(
             Long patientId,
             Long episodeId,
@@ -74,12 +72,7 @@ public class UploadSessionService {
         if (doctorId == null) {
             throw new UploadSessionUnauthorizedException("Authentication is required");
         }
-        patientService.getById(patientId);
-        PjiEpisode episode = episodeRepository.findById(episodeId)
-                .orElseThrow(() -> new BusinessException("Episode not found"));
-        if (episode.getPatient() == null || !patientId.equals(episode.getPatient().getId())) {
-            throw new BusinessException("Episode does not belong to the selected patient");
-        }
+        validatePatientAndEpisode(patientId, episodeId);
 
         Instant now = Instant.now();
         Instant expiresAt = now.plus(properties.getTtl());
@@ -268,6 +261,15 @@ public class UploadSessionService {
         }
         log.info("UPLOAD_SESSION_OBJECTS_CLEANED sessionId={} objectCount={}",
                 message.sessionId(), message.objects().size());
+    }
+
+    private void validatePatientAndEpisode(Long patientId, Long episodeId) {
+        patientService.getById(patientId);
+        PjiEpisode episode = episodeRepository.findById(episodeId)
+                .orElseThrow(() -> new BusinessException("Episode not found"));
+        if (episode.getPatient() == null || !patientId.equals(episode.getPatient().getId())) {
+            throw new BusinessException("Episode does not belong to the selected patient");
+        }
     }
 
     private UploadSession requirePendingSession(UUID sessionId, String rawToken) {
