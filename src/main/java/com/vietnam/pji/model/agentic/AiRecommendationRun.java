@@ -42,8 +42,7 @@ public class AiRecommendationRun extends AbstractEntity<Long> {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "recommendation_scope", nullable = false, length = 30)
-    @Builder.Default
-    private RecommendationScope recommendationScope = RecommendationScope.LEGACY_COMBINED;
+    private RecommendationScope recommendationScope;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)

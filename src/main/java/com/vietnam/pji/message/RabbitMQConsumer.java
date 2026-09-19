@@ -130,9 +130,7 @@ public class RabbitMQConsumer {
             return;
         }
 
-        RecommendationScope scope = run.getRecommendationScope() == null
-                ? RecommendationScope.LEGACY_COMBINED
-                : run.getRecommendationScope();
+        RecommendationScope scope = run.getRecommendationScope();
         List<ItemCategory> receivedCategories = result.getItems().stream()
                 .map(item -> parseCategory(item.getCategory()))
                 .filter(Objects::nonNull)

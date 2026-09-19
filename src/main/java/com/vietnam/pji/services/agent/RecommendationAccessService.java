@@ -16,6 +16,7 @@ import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+//kiểm tra quyền cho các chức năng liên quan đến AI recommendation. Nó không trả dữ liệu khi được phép;
 @Service
 @RequiredArgsConstructor
 public class RecommendationAccessService {
@@ -24,9 +25,11 @@ public class RecommendationAccessService {
     private final AiRecommendationRunRepository runRepository;
     private final UserService userService;
 
+    // cần thiết transaction vì code chủ động tải các quan hệ lazy bằng
+    // Hibernate.initialize(...), như episode.patient
     @Transactional(readOnly = true)
     public void assertCanGenerateEpisode(Long episodeId, RecommendationScope scope) {
-        if (scope == null || scope == RecommendationScope.LEGACY_COMBINED) {
+        if (scope == null) {
             throw new InvalidDataException("New recommendation runs require SURGERY or ANTIBIOTIC scope");
         }
         PjiEpisode episode = episodeRepository.findById(episodeId)
@@ -104,7 +107,8 @@ public class RecommendationAccessService {
         }
         User user = userService.handleGetUserByUsername(currentEmail);
         String roleName = user != null && user.getRole() != null ? user.getRole().getName() : "";
-        if ("PHARMACIST".equalsIgnoreCase(roleName)) return;
+        if ("PHARMACIST".equalsIgnoreCase(roleName))
+            return;
         validateOwnerOrAdmin(episode, run);
     }
 
@@ -114,7 +118,8 @@ public class RecommendationAccessService {
             throw new ForbiddenException("You don't have permission to access this treatment plan");
         }
 
-        if (isAdmin(currentEmail)) return;
+        if (isAdmin(currentEmail))
+            return;
 
         String patientCreatedBy = episode.getPatient() != null ? episode.getPatient().getCreatedBy() : null;
         String episodeCreatedBy = episode.getCreatedBy();

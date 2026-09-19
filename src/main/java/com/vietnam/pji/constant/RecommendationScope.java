@@ -4,15 +4,14 @@ import java.util.Set;
 
 public enum RecommendationScope {
     SURGERY,
-    ANTIBIOTIC,
-    LEGACY_COMBINED;
+    ANTIBIOTIC;
 
     public boolean supportsDoctorDecision() {
-        return this == SURGERY || this == LEGACY_COMBINED;
+        return this == SURGERY;
     }
 
     public boolean supportsPharmacistDecision() {
-        return this == ANTIBIOTIC || this == LEGACY_COMBINED;
+        return this == ANTIBIOTIC;
     }
 
     public Set<ItemCategory> requiredItemCategories() {
@@ -21,10 +20,6 @@ public enum RecommendationScope {
             case ANTIBIOTIC -> Set.of(
                     ItemCategory.SYSTEMIC_ANTIBIOTIC,
                     ItemCategory.LOCAL_ANTIBIOTIC);
-            case LEGACY_COMBINED -> Set.of(
-                    ItemCategory.SYSTEMIC_ANTIBIOTIC,
-                    ItemCategory.LOCAL_ANTIBIOTIC,
-                    ItemCategory.SURGERY_PROCEDURE);
         };
     }
 }

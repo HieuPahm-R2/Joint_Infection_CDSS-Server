@@ -78,16 +78,8 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         Map<Long, PharmacistFinalDecision> pharmacistByRun = pharmacistDecisionRepository.findByRunIdIn(runIds).stream()
                 .collect(Collectors.toMap(item -> item.getRun().getId(), Function.identity()));
         Map<RecommendationScope, Long> finalRunIds = finalRunIds(episodeId);
-        Long legacyFinalRunId = reviewRepository.findByEpisodeIdAndFinalDecisionTrue(episodeId)
-                .map(review -> review.getRun().getId())
-                .orElse(null);
-        finalRunIds.putIfAbsent(RecommendationScope.LEGACY_COMBINED, legacyFinalRunId);
-        Long finalDoctorRunId = finalRunIds.getOrDefault(
-                RecommendationScope.SURGERY,
-                finalRunIds.get(RecommendationScope.LEGACY_COMBINED));
-        Long finalPharmacistRunId = finalRunIds.getOrDefault(
-                RecommendationScope.ANTIBIOTIC,
-                finalRunIds.get(RecommendationScope.LEGACY_COMBINED));
+        Long finalDoctorRunId = finalRunIds.get(RecommendationScope.SURGERY);
+        Long finalPharmacistRunId = finalRunIds.get(RecommendationScope.ANTIBIOTIC);
         Set<Long> selectedRunIds = new HashSet<>(finalRunIds.values());
         selectedRunIds.remove(null);
         User currentUser = currentUser();
@@ -297,13 +289,10 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         boolean eligibleForFinal = switch (scope) {
             case SURGERY -> doctorSigned;
             case ANTIBIOTIC -> pharmacistSigned;
-            case LEGACY_COMBINED -> doctorSigned && pharmacistSigned;
         };
         boolean canSelectFinal = switch (scope) {
             case SURGERY -> doctorSigned && doctor != null && sameUser(doctor.getAuthor(), currentUser);
             case ANTIBIOTIC -> pharmacistSigned && pharmacist != null && sameUser(pharmacist.getAuthor(), currentUser);
-            case LEGACY_COMBINED -> doctorSigned && pharmacistSigned
-                    && doctor != null && sameUser(doctor.getAuthor(), currentUser);
         };
         return RunDecision.builder()
                 .run(runMapper.toDto(run))
@@ -375,9 +364,10 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
     }
 
     private RecommendationScope scopeOf(AiRecommendationRun run) {
-        return run.getRecommendationScope() == null
-                ? RecommendationScope.LEGACY_COMBINED
-                : run.getRecommendationScope();
+        if (run.getRecommendationScope() == null) {
+            throw new InvalidDataException("Recommendation scope is required");
+        }
+        return run.getRecommendationScope();
     }
 
     private void requireDoctorScope(AiRecommendationRun run) {
@@ -395,9 +385,7 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
     private Map<RecommendationScope, Long> finalRunIds(Long episodeId) {
         Map<RecommendationScope, Long> result = new EnumMap<>(RecommendationScope.class);
         finalSelectionRepository.findAllByEpisodeId(episodeId).forEach(selection -> {
-            RecommendationScope scope = selection.getRecommendationScope() == null
-                    ? RecommendationScope.LEGACY_COMBINED
-                    : selection.getRecommendationScope();
+            RecommendationScope scope = selection.getRecommendationScope();
             if (selection.getRun() != null) {
                 result.put(scope, selection.getRun().getId());
             }
@@ -433,17 +421,6 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                 }
                 if (!sameUser(pharmacist.getAuthor(), currentUser)) {
                     throw new ForbiddenException("Only the pharmacist who owns this decision can select it");
-                }
-            }
-            case LEGACY_COMBINED -> {
-                requireRole(currentUser, "DOCTOR", "ADMIN", "SUPER_ADMIN");
-                if (doctor == null || pharmacist == null
-                        || doctor.getStatus() != ClinicalDecisionStatus.SIGNED
-                        || pharmacist.getStatus() != ClinicalDecisionStatus.SIGNED) {
-                    throw new InvalidDataException("Both legacy decisions must be signed");
-                }
-                if (!sameUser(doctor.getAuthor(), currentUser)) {
-                    throw new ForbiddenException("Only the doctor who owns this decision can select it");
                 }
             }
         }

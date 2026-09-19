@@ -163,9 +163,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
             throw new RuntimeException("AI response validation failed: missing items");
         }
 
-        RecommendationScope scope = run.getRecommendationScope() == null
-                ? RecommendationScope.LEGACY_COMBINED
-                : run.getRecommendationScope();
+        RecommendationScope scope = run.getRecommendationScope();
         List<ItemCategory> receivedCategories = response.getItems().stream()
                 .map(item -> parseCategory(item.getCategory()))
                 .filter(Objects::nonNull)

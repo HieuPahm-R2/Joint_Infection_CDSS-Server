@@ -31,8 +31,7 @@ public class RecommendationFinalSelection extends AbstractEntity<Long> {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "recommendation_scope", nullable = false, length = 30)
-    @Builder.Default
-    private RecommendationScope recommendationScope = RecommendationScope.LEGACY_COMBINED;
+    private RecommendationScope recommendationScope;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "selected_by_user_id", nullable = false)

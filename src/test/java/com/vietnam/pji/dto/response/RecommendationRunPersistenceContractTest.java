@@ -28,6 +28,8 @@ class RecommendationRunPersistenceContractTest {
 
     @Test
     void recommendationScopeOwnsItsExactOutputContract() {
+        assertThat(Arrays.stream(RecommendationScope.values()))
+                .containsExactly(RecommendationScope.SURGERY, RecommendationScope.ANTIBIOTIC);
         assertThat(RecommendationScope.SURGERY.requiredItemCategories())
                 .containsExactly(ItemCategory.SURGERY_PROCEDURE);
         assertThat(RecommendationScope.ANTIBIOTIC.requiredItemCategories())

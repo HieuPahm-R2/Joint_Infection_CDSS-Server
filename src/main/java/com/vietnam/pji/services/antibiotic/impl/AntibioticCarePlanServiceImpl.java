@@ -88,9 +88,6 @@ public class AntibioticCarePlanServiceImpl implements AntibioticCarePlanService 
 
         Long selectedRunId = finalSelectionRepository
                 .findByEpisodeIdAndRecommendationScope(episodeId, RecommendationScope.ANTIBIOTIC)
-                .or(() -> finalSelectionRepository.findByEpisodeIdAndRecommendationScope(
-                        episodeId,
-                        RecommendationScope.LEGACY_COMBINED))
                 .map(selection -> selection.getRun().getId())
                 .orElse(null);
         if (selectedRunId != null) {
@@ -109,8 +106,7 @@ public class AntibioticCarePlanServiceImpl implements AntibioticCarePlanService 
         }
 
         for (AiRecommendationRun run : runs) {
-            if (run.getRecommendationScope() == null
-                    || !run.getRecommendationScope().supportsPharmacistDecision()) {
+            if (run.getRecommendationScope() != RecommendationScope.ANTIBIOTIC) {
                 continue;
             }
             PharmacistFinalDecision decision = decisions.get(run.getId());
