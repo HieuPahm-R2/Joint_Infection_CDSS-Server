@@ -46,6 +46,13 @@ This project is indexed by GitNexus as **Backend_Server** (4632 symbols, 10708 r
 - When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
 - For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
+## PostgreSQL MCP (dùng khi có việc liên quan database)
+Đã cài và cấu hình postgres-local cho Codex qua Podman, ở chế độ restricted chỉ đọc. Image chính thức kết nối thành
+công tới pji_dev qua infras_devops_pji-network.
+Lưu ý: Python-host version của MCP bị Windows Application Control chặn _ssl, nên runtime Codex hiện dùng Podman image
+thay thế. MCP đã kết nối và công bố các tool schema/health/SQL; hãy mở phiên Codex mới để tool registry nạp postgres-
+local.
+
 ## Never Do
 
 - NEVER edit a function, class, or method before MCP/CLI impact analysis.
