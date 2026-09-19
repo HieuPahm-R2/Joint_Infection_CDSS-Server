@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+//lớp HTTP client: nó đóng gói việc Backend gọi sang service Extract_Images
 @Service
 @Slf4j
 public class ExtractImagesClient {
@@ -30,6 +31,7 @@ public class ExtractImagesClient {
         this.extractImagesRestTemplate = extractImagesRestTemplate;
     }
 
+    // nhận file từ HTTP request, adapter cho luồng upload trực tiếp
     public Map<String, Object> upload(MultipartFile[] files) throws IOException {
         List<OcrUploadFile> payloads = new ArrayList<>();
         for (MultipartFile file : files) {
@@ -42,16 +44,21 @@ public class ExtractImagesClient {
     }
 
     public Map<String, Object> uploadFiles(List<OcrUploadFile> files) throws IOException {
+        // body dạng nhiều giá trị cho cùng key — ở đây nhiều
+        // part đều có key là "files"
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         for (OcrUploadFile file : files) {
             ByteArrayResource resource = new ByteArrayResource(file.content()) {
                 @Override
                 public String getFilename() {
+                    // ByteArrayResource mặc định không có tên file, trong khi upstream cần filename
+                    // để nhận part như file thật
                     return file.filename();
                 }
             };
             HttpHeaders partHeaders = new HttpHeaders();
             if (file.contentType() != null && !file.contentType().isBlank()) {
+                // gắn Content-Type riêng cho từng file nếu có, ví dụ image/png
                 partHeaders.setContentType(MediaType.parseMediaType(file.contentType()));
             }
             body.add("files", new HttpEntity<>(resource, partHeaders));
@@ -60,7 +67,7 @@ public class ExtractImagesClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-
+        // gửi POST /upload sang Extract_Images và nhận JSON trả về dưới dạng Map.
         ResponseEntity<Map> response = extractImagesRestTemplate.exchange(
                 "/upload", HttpMethod.POST, request, Map.class);
         @SuppressWarnings("unchecked")
@@ -70,8 +77,8 @@ public class ExtractImagesClient {
 
     public Map<String, Object> getResult(String jobId) {
         try {
-            ResponseEntity<Map> response = extractImagesRestTemplate.getForEntity(
-                    "/result/" + jobId, Map.class);
+            ResponseEntity<Map> response = extractImagesRestTemplate.getForEntity("/result/" + jobId, Map.class);
+            // complier bỏ qua cảnh báo về ép kiểu không an toàn trong Generics.
             @SuppressWarnings("unchecked")
             Map<String, Object> data = response.getBody();
             return data;
