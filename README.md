@@ -100,7 +100,8 @@ In `dev`, all of these have working defaults — override only what you need. In
 | `REDIS_HOST` / `REDIS_PORT` | Redis | `localhost` / `6379` |
 | `RABBITMQ_HOST` / `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | RabbitMQ | `localhost` / `admin` / `admin2026` |
 | `INTEGRATION_MINIO_URL` / `_ACCESS_KEY` / `_SECRET_KEY` | MinIO | `http://localhost:9000` / `admin` / `admin2026` |
-| `JWT_BASE64_SECRET` | JWT signing key (base64) | dev-only key |
+| `JWT_ACCESS_BASE64_SECRET` / `JWT_REFRESH_BASE64_SECRET` | JWT signing keys (base64, ≥64 bytes each). Access and refresh tokens are signed with **separate** keys so one leak cannot forge the other token type | dev-only keys in `application-dev.yml` |
+| `JWT_ISSUER` / `JWT_ACCESS_AUDIENCE` / `JWT_REFRESH_AUDIENCE` | Token `iss`/`aud` identifiers — not secrets | `pji-backend` / `pji-api` / `pji-auth` |
 | `APP_CORS_ALLOWED_ORIGINS` | Allowed CORS origins (CSV) | localhost dev ports |
 | `AI_SERVICE_URL` | RAG/Agentic service base URL | `http://localhost:8000` |
 | `EXTRACT_IMAGES_URL` | Image extraction service URL | `http://localhost:8002` |
@@ -153,7 +154,8 @@ docker run -p 8085:8085 \
   -e SPRING_DATASOURCE_PASSWORD=... \
   -e RABBITMQ_HOST=... -e REDIS_HOST=... \
   -e INTEGRATION_MINIO_URL=... \
-  -e JWT_BASE64_SECRET=... \
+  -e JWT_ACCESS_BASE64_SECRET=... \
+  -e JWT_REFRESH_BASE64_SECRET=... \
   pji-backend
 ```
 
@@ -253,7 +255,10 @@ See `docs/backend-architecture.md` for a deeper architectural breakdown.
 |---------|--------------------|
 | App fails at startup with connection errors | Backing services not running — start `Infras_Devops/docker-buildlocal.yml` |
 | `Flyway validate` failure | A migration was edited after being applied — add a new migration instead |
-| `401` on every request | Missing/expired JWT, or wrong `JWT_BASE64_SECRET` between issuer and verifier |
+| `401` on every request | Missing/expired JWT, or a mismatched `JWT_ACCESS_BASE64_SECRET` between the signing and verifying instance. A token signed with the refresh key is also rejected here by design |
+| `401` with `JOSE header typ (type) at+jwt not allowed` | The token carries a `typ` header this Spring Security version rejects — remove `.type(...)` from the `JwsHeader` in `SecurityUtils` |
+| `401` on every login for every account | `users.status` is `NULL`; `UserDetailsConfig` requires `ACTIVE`. See migration `V35` |
+| App fails at startup with `Could not resolve placeholder 'secure.jwt.…'` | The two signing keys have no default outside the `dev` profile — set `JWT_ACCESS_BASE64_SECRET` and `JWT_REFRESH_BASE64_SECRET` |
 | CORS errors in browser | Add the frontend origin to `APP_CORS_ALLOWED_ORIGINS` |
 | AI recommendations never complete | `Rag_Agentic` not running, or RabbitMQ unreachable / wrong credentials |
 | Swagger UI 404 in prod | Disabled by design in the `prod` profile |
