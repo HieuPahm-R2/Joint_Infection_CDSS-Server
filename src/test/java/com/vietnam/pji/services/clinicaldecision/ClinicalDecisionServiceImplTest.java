@@ -1,11 +1,13 @@
 package com.vietnam.pji.services.clinicaldecision;
 
+import com.vietnam.pji.constant.ClinicalDecisionStatus;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.dto.request.DoctorClinicalDecisionRequestDTO;
 import com.vietnam.pji.dto.request.PharmacistClinicalDecisionRequestDTO;
 import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
+import com.vietnam.pji.model.agentic.PharmacistFinalDecision;
 import com.vietnam.pji.model.auth.Role;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.model.medical.PjiEpisode;
@@ -61,7 +63,7 @@ class ClinicalDecisionServiceImplTest {
 
     @Test
     void anotherDoctorCannotWriteTheRunOwnersDecision() {
-        AiRecommendationRun run = run(7L, 11L);
+        AiRecommendationRun run = run(7L, 11L, RecommendationScope.SURGERY);
         User otherDoctor = user(22L, "other.doctor@example.test", "DOCTOR");
         when(runRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(run));
         when(userService.handleGetUserByUsername(otherDoctor.getEmail())).thenReturn(otherDoctor);
@@ -80,7 +82,10 @@ class ClinicalDecisionServiceImplTest {
 
     @Test
     void nonOwnerPharmacistCannotWriteTheRunOwnersDecision() {
-        AiRecommendationRun run = run(7L, 11L);
+        // A pharmacist decision is only valid for an ANTIBIOTIC run, so the fixture must use
+        // that scope. Otherwise requirePharmacistScope rejects it first and the test would
+        // never reach the ownership check it is meant to exercise.
+        AiRecommendationRun run = run(7L, 11L, RecommendationScope.ANTIBIOTIC);
         User owner = user(31L, "owner.pharmacist@example.test", "PHARMACIST");
         User other = user(32L, "other.pharmacist@example.test", "PHARMACIST");
         PharmacistFinalDecision existing = PharmacistFinalDecision.builder()
@@ -106,13 +111,13 @@ class ClinicalDecisionServiceImplTest {
     }
 
 
-    private AiRecommendationRun run(Long runId, Long ownerUserId) {
+    private AiRecommendationRun run(Long runId, Long ownerUserId, RecommendationScope scope) {
         PjiEpisode episode = PjiEpisode.builder().build();
         episode.setId(91L);
         AiRecommendationRun run = AiRecommendationRun.builder()
                 .episode(episode)
                 .createdByUserId(ownerUserId)
-                .recommendationScope(RecommendationScope.SURGERY)
+                .recommendationScope(scope)
                 .status(RunStatus.SUCCESS)
                 .build();
         run.setId(runId);
