@@ -6,6 +6,7 @@ import com.vietnam.pji.dto.request.LoginDTO;
 import com.vietnam.pji.dto.request.ResetPasswordRequestDTO;
 import com.vietnam.pji.dto.request.UpdateOwnProfileRequestDTO;
 import com.vietnam.pji.dto.request.VerifyDeviceRequestDTO;
+import com.vietnam.pji.config.auth.RefreshTokenVerifier;
 import com.vietnam.pji.dto.response.ResLoginDTO;
 import com.vietnam.pji.dto.response.ResponseData;
 import com.vietnam.pji.exception.InvalidDataException;
@@ -69,6 +70,7 @@ public class AuthController {
     private final RedisService RedisService;
     private final AuthenticationManager authenticationManager;
     private final SecurityUtils securityUtils;
+    private final RefreshTokenVerifier refreshTokenVerifier;
     private final PasswordRecoveryService passwordRecoveryService;
     private final CaptchaService captchaService;
     private final RoleMapper roleMapper;
@@ -333,7 +335,7 @@ public class AuthController {
         }
         Jwt correctToken;
         try {
-            correctToken = this.securityUtils.confirmValidRefreshToken(refreshToken);
+            correctToken = this.refreshTokenVerifier.decode(refreshToken);
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseData<>(HttpStatus.BAD_REQUEST.value(), "Invalid or expired refresh token"));

@@ -2,12 +2,12 @@ package com.vietnam.pji.utils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -19,28 +19,42 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Service;
 
-import com.nimbusds.jose.util.Base64;
 import com.vietnam.pji.dto.response.ResLoginDTO;
 
-import lombok.RequiredArgsConstructor;
-
 @Service
-@RequiredArgsConstructor
 public class SecurityUtils {
     public static final MacAlgorithm JWT_ALGORITHM = MacAlgorithm.HS512;
-    private final JwtEncoder jwtEncoder;
+    public static final String ACCESS_TOKEN_USE = "access";
+    public static final String REFRESH_TOKEN_USE = "refresh";
+    public static final String TOKEN_USE_CLAIM = "token_use";
+    public static final String ROLES_CLAIM = "roles";
 
-    @Value("${secure.jwt.base64-secret}")
-    private String jwtKey;
+    private final JwtEncoder accessJwtEncoder;
+    private final JwtEncoder refreshJwtEncoder;
 
     @Value("${secure.jwt.access-token-validity-in-seconds}")
     private long accessTokenExpire;
 
     @Value("${secure.jwt.refresh-token-validity-in-seconds}")
     private long refreshTokenExpire;
+
+    @Value("${secure.jwt.issuer}")
+    private String issuer;
+
+    @Value("${secure.jwt.access-audience}")
+    private String accessAudience;
+
+    @Value("${secure.jwt.refresh-audience}")
+    private String refreshAudience;
+
+    public SecurityUtils(
+            @Qualifier("accessJwtEncoder") JwtEncoder accessJwtEncoder,
+            @Qualifier("refreshJwtEncoder") JwtEncoder refreshJwtEncoder) {
+        this.accessJwtEncoder = accessJwtEncoder;
+        this.refreshJwtEncoder = refreshJwtEncoder;
+    }
 
     private static String extractPrincipal(Authentication authentication) {
         if (authentication == null) {
@@ -80,25 +94,6 @@ public class SecurityUtils {
     }
 
     /**
-     * JWT authentication.
-     */
-    public SecretKey getSecretKey() {
-        byte[] keyBytes = Base64.from(jwtKey).decode();
-        return new SecretKeySpec(keyBytes, 0, keyBytes.length, JWT_ALGORITHM.getName());
-    }
-
-    public Jwt confirmValidRefreshToken(String token) {
-        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(getSecretKey()).macAlgorithm(JWT_ALGORITHM)
-                .build();
-        try {
-            return jwtDecoder.decode(token);
-        } catch (Exception e) {
-            System.out.println(">>> Refresh_token gets error: " + e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
      * JWT generate Access Token. `sessionId` is the active-session id checked
      * by ActiveSessionFilter; logging in from a new device rotates this value
      * so the previous device's still-valid access token is rejected on its
@@ -115,14 +110,24 @@ public class SecurityUtils {
 
         // @formatter:off
         JwtClaimsSet claims = JwtClaimsSet.builder()
+        .issuer(issuer)
+        .audience(List.of(accessAudience))
         .issuedAt(now)
         .expiresAt(validity)
         .subject(email)
+        .id(UUID.randomUUID().toString())
         .claim("user account", token)
         .claim("sid", sessionId)
+        .claim(TOKEN_USE_CLAIM, ACCESS_TOKEN_USE)
+        .claim(ROLES_CLAIM, List.of(user.getUser().getRole().getName()))
         .build();
+        // No "typ" header on purpose. Setting it to "at+jwt" (as RFC 9068 suggests) makes
+        // NimbusJwtDecoder reject the token with "JOSE header typ (type) at+jwt not allowed",
+        // which breaks every authenticated request. The token type is already enforced by
+        // three stronger, independent mechanisms: a separate signing key per type, the
+        // "aud" claim, and the "token_use" claim.
         JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build();
-        return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
+        return this.accessJwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
     }
 
      /**
@@ -131,22 +136,22 @@ public class SecurityUtils {
      * be exchanged for a fresh access token.
      */
     public String generateRefreshToken(String emailLogin, ResLoginDTO resLoginDTO, String sessionId){
-        ResLoginDTO.InfoWithinToken data = new ResLoginDTO.InfoWithinToken();
-        data.setId(resLoginDTO.getUser().getId());
-        data.setEmail(resLoginDTO.getUser().getEmail());
-        data.setName(resLoginDTO.getUser().getName());
-         // assign to claim
         Instant now = Instant.now();
         Instant validity = now.plus(this.refreshTokenExpire, ChronoUnit.SECONDS);
-        // @formatter:off
         JwtClaimsSet claims = JwtClaimsSet.builder()
+        .issuer(issuer)
+        .audience(List.of(refreshAudience))
         .issuedAt(now)
         .expiresAt(validity)
         .subject(emailLogin)
-        .claim("user account", data)
+        .id(UUID.randomUUID().toString())
         .claim("sid", sessionId)
+        .claim(TOKEN_USE_CLAIM, REFRESH_TOKEN_USE)
         .build();
+        // See the matching note in generateAccessToken: the "rt+jwt" typ header is rejected
+        // by NimbusJwtDecoder, so the refresh token is distinguished by its own signing key,
+        // audience and token_use claim instead.
         JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build();
-        return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
+        return this.refreshJwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
     }
 }

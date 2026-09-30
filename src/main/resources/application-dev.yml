@@ -41,9 +41,12 @@ secure:
   cookie:
     secure: false
   jwt:
-    # Dev-only default. Override in prod via env. Safe to commit because it's
-    # only used when SPRING_PROFILES_ACTIVE=dev.
-    base64-secret: ${JWT_BASE64_SECRET:Thm2YoflXUlz108mmwLd3NAwAVy6+UaaSFlIoGoPuk88ac9IXLDfov3be8bryQlVQZ2V1RhKzY36mogSUiNEULg==}
+    # Dev-only defaults. Safe to commit because they are only used when
+    # SPRING_PROFILES_ACTIVE=dev. Each must base64-decode to at least 64 bytes,
+    # which HS512 requires (JwtConfiguration.getSecretKey enforces it).
+    # Override via env in prod; application.yaml intentionally has no default.
+    access-base64-secret: ${JWT_ACCESS_BASE64_SECRET:4rTMB2llWCFXZsKLqkMelqfnXLv1AQp/+GfzArfXGQOTMHE4LmWZgGoWlHWIpXraI8ZV8cmPVX8jEz1vs7ZpJw==}
+    refresh-base64-secret: ${JWT_REFRESH_BASE64_SECRET:Pke9t1QeHtR+ylNYxQqLv5B5njRbdFMzQKaaUUZtf6F+E7Ogweoxx8+frg38QYRl/nNdKthahax6hNN6TIVyLw==}
 
 app:
   cors:

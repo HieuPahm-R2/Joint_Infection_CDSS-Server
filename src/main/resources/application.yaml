@@ -84,7 +84,15 @@ secure:
     secure: ${COOKIE_SECURE:false}
     same-site: ${COOKIE_SAME_SITE:Lax}
   jwt:
-    base64-secret: ${JWT_BASE64_SECRET:chucmungthanglon}
+    # --- Token identifiers. Not secrets: safe to commit and overridable per environment. ---
+    issuer: ${JWT_ISSUER:pji-backend}
+    access-audience: ${JWT_ACCESS_AUDIENCE:pji-api}
+    refresh-audience: ${JWT_REFRESH_AUDIENCE:pji-auth}
+    # --- Signing keys. These ARE secrets, so they deliberately have NO default here:
+    #     a missing value must fail fast at startup instead of silently signing with a
+    #     committed key.
+    access-base64-secret: ${JWT_ACCESS_BASE64_SECRET}
+    refresh-base64-secret: ${JWT_REFRESH_BASE64_SECRET}
     refresh-token-validity-in-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}   # 7 days
     access-token-validity-in-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}        # 1 hour
 
