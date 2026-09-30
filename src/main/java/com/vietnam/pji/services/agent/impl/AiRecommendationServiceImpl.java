@@ -254,7 +254,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AiRecommendationRunDetailDTO getRunDetail(Long runId) {
         recommendationAccessService.assertCanReviewRun(runId);
         // Check cache for terminal runs

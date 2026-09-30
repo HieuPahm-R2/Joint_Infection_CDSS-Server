@@ -26,7 +26,10 @@ import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** Reads and authorizes a chat turn without retaining a transaction during AI I/O. */
+/**
+ * Reads and authorizes a chat turn without retaining a transaction during AI
+ * I/O.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -42,14 +45,20 @@ class AiChatTurnPreparer {
     PreparedChatTurn prepare(Long sessionId, SendChatMessageRequestDTO request) {
         AiChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Chat session not found: " + sessionId));
+        // Kiểm tra người hiện tại có quyền với bệnh án/AI recommendation gắn với
+        // session không.
         assertCanAccessSession(session);
         return new PreparedChatTurn(session.getId(), buildChatRequest(session, request));
     }
 
     private AiChatRequestDTO buildChatRequest(AiChatSession session, SendChatMessageRequestDTO request) {
+        // nội dung tin nhắn hiện tại
         AiChatRequestDTO.AiChatRequestDTOBuilder builder = AiChatRequestDTO.builder()
                 .question(request.getContent());
-
+        // snapshot bệnh án, chỉ thêm khi yêu cầu và session có episode. Nếu dựng
+        // snapshot lỗi, chat vẫn tiếp
+        // nhưng log warning — vì episode context là tăng cường chất lượng
+        // không phải bắt buộc.
         if (request.isUseEpisodeContext() && session.getEpisode() != null) {
             try {
                 var snapshotResult = snapshotAssemblerService.buildSnapshot(session.getEpisode().getId());
@@ -60,6 +69,8 @@ class AiChatTurnPreparer {
         }
 
         if (request.isUseRunContext() && session.getRun() != null) {
+            // lựa chọn để AI tập trung vào item đang hỏi nhưng vẫn hiểu bối cảnh run mà
+            // không nhồi toàn bộ JSON của mọi item vào prompt.
             Map<String, Object> recommendationContext = new LinkedHashMap<>();
             if (session.getCurrentItem() != null) {
                 recommendationContext.put("current_item", session.getCurrentItem().getItemJson());
@@ -78,6 +89,9 @@ class AiChatTurnPreparer {
         }
 
         if (request.isUseChatHistory()) {
+            // nhận tối đa 20 tin nhắn gần nhất, theo đúng thứ tự cũ → mới, cộng với câu
+            // hiện tại;
+            // vì vậy nó có ngữ cảnh để trả lời tiếp nối.
             List<AiChatMessage> recentMessages = new ArrayList<>(messageRepository
                     .findTop20BySessionIdOrderByCreatedAtDesc(session.getId()));
             Collections.reverse(recentMessages);
@@ -87,8 +101,7 @@ class AiChatTurnPreparer {
                             .content(message.getContent())
                             .build())
                     .collect(Collectors.toCollection(ArrayList::new));
-            // The user message has not been persisted yet, so add it explicitly
-            // to preserve the request sent by the previous transactional flow.
+
             history.add(AiChatRequestDTO.ChatMessageDTO.builder()
                     .role("user")
                     .content(request.getContent())

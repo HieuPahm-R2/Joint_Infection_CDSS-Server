@@ -44,9 +44,11 @@ public class AiChatServiceImpl implements AiChatService {
     @Transactional
     public AiChatSession createSession(CreateChatSessionRequestDTO request) {
         if (request.getEpisodeId() != null) {
+            // check quyền
             recommendationAccessService.assertCanAccessEpisode(request.getEpisodeId());
         }
         if (request.getRunId() != null) {
+            // check quyền
             recommendationAccessService.assertCanAccessRun(request.getRunId());
         }
 
@@ -55,16 +57,17 @@ public class AiChatServiceImpl implements AiChatService {
                 .title(request.getTitle())
                 .build();
 
+        // tính nhất quán
         if (request.getEpisodeId() != null) {
             session.setEpisode(episodeRepository.findById(request.getEpisodeId())
                     .orElseThrow(() -> new ResourceNotFoundException("Episode not found")));
         }
-
+        // tính nhất quán
         if (request.getRunId() != null) {
             session.setRun(runRepository.findById(request.getRunId())
                     .orElseThrow(() -> new ResourceNotFoundException("Run not found")));
         }
-
+        // tính nhất quán
         if (request.getCurrentItemId() != null) {
             AiRecommendationItem item = itemRepository.findById(request.getCurrentItemId())
                     .orElseThrow(() -> new ResourceNotFoundException("Item not found"));
@@ -77,7 +80,7 @@ public class AiChatServiceImpl implements AiChatService {
 
         if (session.getEpisode() != null && session.getRun() != null
                 && (session.getRun().getEpisode() == null
-                || !session.getEpisode().getId().equals(session.getRun().getEpisode().getId()))) {
+                        || !session.getEpisode().getId().equals(session.getRun().getEpisode().getId()))) {
             throw new ForbiddenException("AI recommendation run does not belong to this episode");
         }
         if (session.getRun() != null && session.getCurrentItem() != null
@@ -109,6 +112,8 @@ public class AiChatServiceImpl implements AiChatService {
         chatTurnPreparer.assertCanAccessSession(session);
 
         Page<AiChatMessage> page = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId, pageable);
+        // Hibernate.initialize(...) các liên kết lazy để response HTTP không gặp lỗi
+        // session đã đóng
         page.getContent().forEach(m -> Hibernate.initialize(m.getSession()));
 
         PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
@@ -126,11 +131,13 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     @Transactional(readOnly = true)
     public PaginationResultDTO getSessionsByEpisode(Long episodeId, Pageable pageable) {
+        // kiểm quyền trước khi đọc;
+        // chủ động Hibernate.initialize(...) các liên kết lazy để response HTTP không
+        // gặp lỗi session đã đóng
         recommendationAccessService.assertCanAccessEpisode(episodeId);
         if (!episodeRepository.existsById(episodeId)) {
             throw new ResourceNotFoundException("Episode not found: " + episodeId);
         }
-
         Page<AiChatSession> page = sessionRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId, pageable);
         page.getContent().forEach(s -> {
             Hibernate.initialize(s.getEpisode());
