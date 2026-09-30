@@ -52,12 +52,16 @@ public class ActiveSessionFilter extends OncePerRequestFilter {
 
             String tokenSid = jwt.getClaimAsString("sid");
             String email = jwt.getSubject();
+            if (tokenSid == null || tokenSid.isBlank() || email == null || email.isBlank()) {
+                writeSessionRevoked(request, response);
+                return;
+            }
             // Tokens issued before this feature existed have no sid — let them
             // through so existing logged-in sessions don't get force-logged-out
             // by a hot deploy. New tokens always carry a sid.
             if (tokenSid != null && !tokenSid.isBlank() && email != null && !email.isBlank()) {
                 String activeSid = redisService.getActiveSession(email);
-                if (activeSid != null && !activeSid.equals(tokenSid)) {
+                if (activeSid == null || !activeSid.equals(tokenSid)) {
                     // hàm này sẽ từ chối và ngắt request
                     writeSessionRevoked(request, response);
                     return;

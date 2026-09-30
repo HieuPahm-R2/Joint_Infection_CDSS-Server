@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
+import com.vietnam.pji.constant.UserStatus;
 import com.vietnam.pji.services.auth.UserService;
 
 import java.util.Collections;
@@ -22,10 +23,13 @@ public class UserDetailsConfig implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         com.vietnam.pji.model.auth.User user = this.userService.handleGetUserByUsername(username);
-        if (user == null || user.getPassword() == null) {
+        if (user == null || user.getPassword() == null
+                || !UserStatus.ACTIVE.equals(user.getStatus())
+                || user.getRole() == null
+                || !user.getRole().isActive()) {
             throw new UsernameNotFoundException("User not found with email: " + username);
         }
         return new User(user.getEmail(), user.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE-USER")));
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().getName())));
     }
 }

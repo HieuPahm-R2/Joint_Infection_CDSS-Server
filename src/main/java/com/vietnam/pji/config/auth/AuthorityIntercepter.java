@@ -3,6 +3,7 @@ package com.vietnam.pji.config.auth;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vietnam.pji.constant.UserStatus;
 import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.model.auth.Permission;
 import com.vietnam.pji.model.auth.Role;
@@ -52,8 +53,14 @@ public class AuthorityIntercepter implements HandlerInterceptor {
         String email = SecurityUtils.getCurrentUserLogin().isPresent()
                 ? SecurityUtils.getCurrentUserLogin().get()
                 : "";
+        if (email.isEmpty() || path == null) {
+            throw new ForbiddenException("Authenticated principal and matched route are required");
+        }
         if (!email.isEmpty()) {
             List<String> permissionKeys = loadPermissions(email);
+            if (permissionKeys == null) {
+                throw new ForbiddenException("An active role is required");
+            }
             if (permissionKeys != null) {
                 String requestKey = httpMethod + ":" + path;
                 if (!permissionKeys.contains(requestKey)) {
@@ -88,9 +95,9 @@ public class AuthorityIntercepter implements HandlerInterceptor {
 
         // Cache miss — load from DB
         User user = this.userService.handleGetUserByUsername(email);
-        if (user != null) {
+        if (user != null && UserStatus.ACTIVE.equals(user.getStatus())) {
             Role role = user.getRole();
-            if (role != null) {
+            if (role != null && role.isActive()) {
                 List<Permission> permissions = role.getPermissions();
                 List<String> keys = permissions.stream()
                         .map(p -> p.getMethod() + ":" + p.getApiPath())
