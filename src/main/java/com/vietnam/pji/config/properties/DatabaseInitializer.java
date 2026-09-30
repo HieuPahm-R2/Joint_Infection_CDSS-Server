@@ -3,6 +3,7 @@ package com.vietnam.pji.config.properties;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.vietnam.pji.constant.UserStatus;
 import com.vietnam.pji.model.auth.Permission;
 import com.vietnam.pji.model.auth.Role;
 import com.vietnam.pji.model.auth.User;
@@ -254,6 +255,10 @@ public class DatabaseInitializer implements CommandLineRunner {
                                 bootstrapAdmin.setEmail(bootstrapAdminEmail);
                                 bootstrapAdmin.setPassword(this.passwordEncoder.encode(bootstrapAdminPassword));
                                 bootstrapAdmin.setRole(adminRole);
+                                // UserDetailsConfig rejects any account whose status is not
+                                // ACTIVE, so the bootstrap admin must be created active or
+                                // nobody can log in to a fresh installation.
+                                bootstrapAdmin.setStatus(UserStatus.ACTIVE);
 
                                 this.userRepository.save(bootstrapAdmin);
                                 initialized = true;

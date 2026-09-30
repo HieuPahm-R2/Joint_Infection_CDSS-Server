@@ -1,5 +1,6 @@
 package com.vietnam.pji.services.auth.impl;
 
+import com.vietnam.pji.constant.UserStatus;
 import com.vietnam.pji.dto.request.ChangePasswordRequestDTO;
 import com.vietnam.pji.dto.request.UpdateOwnProfileRequestDTO;
 import com.vietnam.pji.dto.request.UserRequestDTO;
@@ -48,6 +49,13 @@ public class UserServiceImpl implements UserService {
         if (data.getRole().getId() != null) {
             Role role = roleRepository.findById(data.getRole().getId()).orElse(null);
             user.setRole(role);
+        }
+        // UserDetailsConfig requires ACTIVE to authenticate, and the status column has no
+        // database default, so an omitted (or explicitly null) status would create an
+        // account that can never log in. Default new accounts to ACTIVE; an explicit
+        // INACTIVE/NONE from the request is preserved because MapStruct already mapped it.
+        if (user.getStatus() == null) {
+            user.setStatus(UserStatus.ACTIVE);
         }
         user.setPassword(passwordEncoder.encode(data.getPassword()));
         return userMapper.toUserDetailResponse(userRepository.save(user));
