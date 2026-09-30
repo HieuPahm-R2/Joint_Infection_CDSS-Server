@@ -35,6 +35,16 @@ public interface RedisService {
     boolean validateRefreshToken(String email, String refreshToken);
 
     /**
+     * Atomically replace the current refresh token when the presented token
+     * matches. Returns false for replay, revocation, or an expired session.
+     */
+    boolean rotateRefreshToken(
+            String email,
+            String presentedRefreshToken,
+            String replacementRefreshToken,
+            long expirationTimeInSeconds);
+
+    /**
      * Lưu id phiên đang hoạt động cho email (single-device enforcement).
      * Mọi access/refresh token chứa claim "sid" khác giá trị này sẽ bị
      * ActiveSessionFilter từ chối với mã SESSION_REVOKED.

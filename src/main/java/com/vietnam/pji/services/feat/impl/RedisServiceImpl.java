@@ -5,13 +5,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import com.vietnam.pji.services.feat.RedisService;
 
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -29,11 +33,17 @@ public class RedisServiceImpl implements RedisService {
     private static final String CANCEL_RUN_KEY_PREFIX = "cancel:run:";
     private static final int PERMISSION_CACHE_SCAN_COUNT = 1_000;
     private static final int PERMISSION_CACHE_DELETE_BATCH_SIZE = 500;
+    private static final DefaultRedisScript<Long> ROTATE_REFRESH_TOKEN_SCRIPT =
+            new DefaultRedisScript<>(
+                    "if redis.call('GET', KEYS[1]) == ARGV[1] then "
+                            + "redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]); return 1 "
+                            + "else return 0 end",
+                    Long.class);
 
     @Override
     public void saveRefreshToken(String email, String refreshToken, long expirationTimeInSeconds) {
         String key = REFRESH_TOKEN_KEY_PREFIX + email;
-        redisTemplate.opsForValue().set(key, refreshToken, expirationTimeInSeconds, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(key, tokenHash(refreshToken), expirationTimeInSeconds, TimeUnit.SECONDS);
     }
 
     @Override
@@ -51,7 +61,24 @@ public class RedisServiceImpl implements RedisService {
     @Override
     public boolean validateRefreshToken(String email, String refreshToken) {
         String storedToken = getRefreshToken(email);
-        return Objects.equals(storedToken, refreshToken);
+        return MessageDigest.isEqual(
+                bytes(storedToken),
+                bytes(tokenHash(refreshToken)));
+    }
+
+    @Override
+    public boolean rotateRefreshToken(
+            String email,
+            String presentedRefreshToken,
+            String replacementRefreshToken,
+            long expirationTimeInSeconds) {
+        Long result = redisTemplate.execute(
+                ROTATE_REFRESH_TOKEN_SCRIPT,
+                List.of(REFRESH_TOKEN_KEY_PREFIX + email),
+                tokenHash(presentedRefreshToken),
+                tokenHash(replacementRefreshToken),
+                Long.toString(expirationTimeInSeconds));
+        return Long.valueOf(1L).equals(result);
     }
 
     @Override
@@ -195,5 +222,19 @@ public class RedisServiceImpl implements RedisService {
             return;
         String key = CANCEL_RUN_KEY_PREFIX + runId;
         redisTemplate.delete(key);
+    }
+
+    private String tokenHash(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(bytes(token));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private byte[] bytes(String value) {
+        return value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
     }
 }
