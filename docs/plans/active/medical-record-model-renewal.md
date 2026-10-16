@@ -235,7 +235,12 @@ Why phase 2 is contract-neutral, verified rather than assumed:
       against the renamed schema.
 - [ ] Clear the two phase 4 gates: external consumers, and the ordering plus
       `pji_dev` version.
-- [ ] Phase 3: route rename plus frontend contract fixes.
+- [x] Phase 3a: serve every episode-scoped route on `/admissions` as well, with
+      an invariant test. Committed as `e1bf52d`.
+- [ ] Phase 3b: the JSON body keys. Blocked on a frontend-first move, because
+      key renames cannot be made additive the way routes can.
+- [ ] Phase 3c: retire `/episodes` once the frontend has migrated, and migrate
+      the `permissions` rows for non-`ADMIN` roles in the same change.
 - [ ] Phase 4: schema rename with compatibility views.
 - [ ] Phase 5: aggregate separation.
 - [ ] Phase 6: granularity and backfills.
@@ -276,6 +281,19 @@ Why phase 2 is contract-neutral, verified rather than assumed:
 - 2026-10-16: Route rename and key rename are still executed as separate commits
   even though both are in scope, so each change moves exactly one axis and can be
   reverted on its own.
+- 2026-10-16: The route rename is **additive**, not a switch: 34 mappings across
+  15 controllers answer on `/admissions` and `/episodes` at once. Chosen so that
+  `Frontend_Client` needs no change and no role loses a grant during the window.
+  `AdmissionRouteAliasTest` encodes the invariant against the registered handler
+  mappings, so a new episode-scoped route without its alias fails the suite.
+- 2026-10-16: **Open tension to resolve before phase 3b.** The owner asked for
+  JSON body keys to be renamed (`episodeId` → `admissionId`, `medicalRecordCode`
+  → `recordNumber`, and so on) *and* for the route change to be non-breaking.
+  Those pull in opposite directions: a route can answer on two paths, but a JSON
+  key cannot silently be two keys without duplicating every affected property.
+  Phase 3b therefore needs one of: a dual-key window (`@JsonProperty` plus
+  `@JsonAlias` on the affected properties), a frontend-first move, or accepting
+  a breaking change with a coordinated deploy.
 
 ## Validation
 
