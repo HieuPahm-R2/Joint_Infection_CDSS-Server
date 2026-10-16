@@ -779,7 +779,53 @@ consumer still works — every tier 1 and tier 2 key is renamed on purpose, so
 `Frontend_Client` and `Rag_Agentic` are expected to break until they land in the
 same change.
 
-### Phase 3b frontend cost (measured 2026-10-16)
+### Phase 3b frontend: why a token rename fails (2026-10-16)
+
+Attempted three times on a scratch with `tsc --noEmit` as the oracle. The failures
+are the finding.
+
+1. **Rename only `types/backend.d.ts`** (the contract mirror) and let the compiler
+   list the rest: **34 errors, 25 of them new**. That is the measured cost of the
+   contract change, and it is the accurate number.
+2. **Also rename the usages by property access** (`.episodeId`,
+   `.medicalRecordCode`, `.labResults`, `.clinicalRecord`, …): **96 errors**,
+   because the frontend has its own types whose properties share the contract's
+   names:
+   - `IClinicFormState`, the editor's form model, declares `clinicalRecord` and
+     `cultureResults`;
+   - `IAiRegimenTask`, persisted in `sessionStorage`, declares `episodeId` and
+     `medicalRecordCode`;
+   - `DiagnosisWorkflowScope` declares `episodeId`;
+   - `LayoutClient` and `PatientTable` declare inline route-state types with
+     `episodeId`;
+   - `PjiDiagnosisInput` declares `cultureResult`;
+   - `apis/api.ts` uses `episodeId` as a **function parameter name**, so renaming
+     the annotation alone leaves the body unable to resolve it.
+3. **Restrict to contract-only property accesses**: most contract sites are fixed,
+   but the same shadow types now break from the other side, so the count stays at
+   34 with a different membership.
+
+Conclusion: the frontend rename has to be applied **per type**, never per token or
+per usage. Two coherent options, and the second matches decision 0010's intent:
+
+1. Rename the contract types only and leave the frontend's internal types alone,
+   fixing just the sites the compiler flags for contract types. Smallest diff, but
+   the frontend keeps an internal `episodeId` vocabulary that no longer matches the
+   API it calls.
+2. Rename the frontend's vocabulary throughout, including its own types, while
+   protecting API path literals such as `/episodes/{episodeId}`, which the backend
+   still serves until phase 3c. Larger diff, uniform vocabulary, and fully
+   compiler-checkable.
+
+Two facts that apply either way: the frontend has **no working typecheck** until
+`ignoreDeprecations` in `tsconfig.json` becomes `"5.0"` (TypeScript 5.8 rejects
+`"6.0"`, `TS5103`), and **9 errors pre-exist** independently of this work
+(`NotificationBell` 4, `PatientModal` 3, `AntibiogramAiVersionTab` 1, `ModalRole`
+1).
+
+
+
+### Phase 3b frontend cost, first measurement (2026-10-16)
 
 Method: copy `Frontend_Client/src` to a scratch, junction `node_modules` to avoid
 copying it, rename **only** the contract fields in `types/backend.d.ts`, then run
