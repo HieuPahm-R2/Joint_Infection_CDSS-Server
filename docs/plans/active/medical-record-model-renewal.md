@@ -817,11 +817,39 @@ per usage. Two coherent options, and the second matches decision 0010's intent:
    still serves until phase 3c. Larger diff, uniform vocabulary, and fully
    compiler-checkable.
 
-Two facts that apply either way: the frontend has **no working typecheck** until
-`ignoreDeprecations` in `tsconfig.json` becomes `"5.0"` (TypeScript 5.8 rejects
-`"6.0"`, `TS5103`), and **9 errors pre-exist** independently of this work
-(`NotificationBell` 4, `PatientModal` 3, `AntibiogramAiVersionTab` 1, `ModalRole`
-1).
+### Phase 3b frontend half: proven (2026-10-16)
+
+Option 2 executed on a scratch and verified end to end. The reusable script is
+`.tmp/phase3b-fe-rename.ps1`: it rewrites **52 files**, `tsc --noEmit` returns
+exactly the **9 errors that pre-exist** in the repository and none from this
+change, and it self-verifies that no regex text and no marker survives.
+
+Four protected literals survive, each learned from a failing attempt:
+
+| Literal | Occurrences after | Why it must not move |
+| --- | --- | --- |
+| `/episodes` | 62, unchanged | the legacy route segment the backend still serves until phase 3c |
+| `{episodeId}` | 21 | route template path variables. The repository matches that text 42 times because 21 are `${episodeId}` interpolations, which are correctly renamed; protecting the bare form once renamed the variable but not its declaration |
+| `episodeId=` | 3 | query-string keys. Protecting the bare form once renamed 5 JSX attributes while their component prop types moved the other way |
+| `{cultureId}` | 1 | the same hazard on sensitivity-results |
+
+Three tooling traps, and two of them produced a **green-looking but wrong**
+result:
+
+1. PowerShell hashtables compare keys case-insensitively, so the rule table is
+   `PSCustomObject`s and replacement is case-sensitive.
+2. Restoration wrote the regex **pattern** instead of the literal, corrupting 22
+   `apiPath` strings. They remained valid string literals, so `tsc` stayed green
+   while the permission paths were wrong. The script now restores the literal and
+   asserts both failure modes are absent.
+3. The frontend has its own types whose properties share the contract's names
+   (`IClinicFormState`, `IAiRegimenTask`, `DiagnosisWorkflowScope`, the inline
+   route-state types, `PjiDiagnosisInput`), so the rename had to cover them too
+   rather than fight them type by type.
+
+Not applied to the repository: the frontend working tree carries the owner's
+uncommitted work, and the frontend also needs `ignoreDeprecations` changed to
+`"5.0"` before its typecheck runs at all — that belongs in the same change.
 
 
 
