@@ -1,6 +1,7 @@
 package com.vietnam.pji.services.episode.impl;
 
 import com.vietnam.pji.dto.request.AdmissionFullRequestDTO;
+import com.vietnam.pji.dto.request.ClinicalAssessmentRequestDTO;
 import com.vietnam.pji.dto.request.AdmissionFullRequestDTO.CultureItem;
 import com.vietnam.pji.dto.request.AdmissionFullRequestDTO.ImageItem;
 import com.vietnam.pji.dto.request.AdmissionFullRequestDTO.SensitivityItem;
@@ -8,6 +9,7 @@ import com.vietnam.pji.dto.request.AdmissionFullRequestDTO.SurgeryItem;
 import com.vietnam.pji.dto.response.AdmissionFullResponseDTO;
 import com.vietnam.pji.dto.response.ImagingStudyResponseDTO;
 import com.vietnam.pji.model.medical.ClinicalAssessment;
+import com.vietnam.pji.model.medical.VitalSignsMeasurement;
 import com.vietnam.pji.model.medical.SpecimenCulture;
 import com.vietnam.pji.model.medical.LabReport;
 import com.vietnam.pji.model.medical.Admission;
@@ -18,6 +20,7 @@ import com.vietnam.pji.repository.MedicalHistoryRepository;
 import com.vietnam.pji.repository.AntibioticSusceptibilityRepository;
 import com.vietnam.pji.repository.SurgeryRepository;
 import com.vietnam.pji.repository.medical.ClinicalAssessmentRepository;
+import com.vietnam.pji.repository.medical.VitalSignsMeasurementRepository;
 import com.vietnam.pji.repository.medical.SpecimenCultureRepository;
 import com.vietnam.pji.services.episode.AdmissionAggregateService;
 import com.vietnam.pji.services.episode.AdmissionService;
@@ -38,6 +41,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -71,6 +76,7 @@ public class AdmissionAggregateServiceImpl implements AdmissionAggregateService 
     private final LabReportRepository labResultRepository;
     private final SpecimenCultureRepository cultureResultRepository;
     private final AntibioticSusceptibilityRepository sensitivityResultRepository;
+    private final VitalSignsMeasurementRepository vitalSignsRepository;
 
     private final RedisService redisService;
     private final com.vietnam.pji.services.medical.PendingLabTaskService pendingLabTaskService;
@@ -151,6 +157,11 @@ public class AdmissionAggregateServiceImpl implements AdmissionAggregateService 
             }
         }
 
+        // 3b. Vital signs (append-only history)
+        if (dto.getClinicalRecord() != null) {
+            recordVitalSigns(episode, dto.getClinicalRecord());
+        }
+
         // 4. Lab result (latest upsert)
         if (dto.getLabResult() != null) {
             dto.getLabResult().setEpisodeId(epId);
@@ -180,6 +191,59 @@ public class AdmissionAggregateServiceImpl implements AdmissionAggregateService 
         redisService.evictSnapshotCache(epId);
 
         return epId;
+    }
+
+    /**
+     * Appends a vital-signs measurement when the numbers actually changed.
+     *
+     * <p>
+     * Decision 0010 moves the four vital fields off the assessment and onto a 1:N
+     * history, because overwriting them loses the clinical picture at every earlier
+     * moment. The assessment keeps the fields during the transition, so this write
+     * is additive and nothing reads the history yet.
+     *
+     * <p>
+     * A save that does not change the numbers must not append a row, otherwise the
+     * history fills with duplicates of the same measurement.
+     */
+    private void recordVitalSigns(Admission episode, ClinicalAssessmentRequestDTO request) {
+        boolean hasAnyVital = request.getBloodPressure() != null
+                || request.getHeightCm() != null
+                || request.getWeightKg() != null
+                || request.getBmi() != null;
+        if (!hasAnyVital) {
+            return;
+        }
+
+        Optional<VitalSignsMeasurement> latest = vitalSignsRepository
+                .findFirstByEpisodeIdOrderByRecordedAtDesc(episode.getId());
+        if (latest.isPresent() && sameVitals(latest.get(), request)) {
+            return;
+        }
+
+        vitalSignsRepository.save(VitalSignsMeasurement.builder()
+                .episode(episode)
+                .recordedAt(Instant.now())
+                .bloodPressure(request.getBloodPressure())
+                .heightCm(request.getHeightCm())
+                .weightKg(request.getWeightKg())
+                .bmi(request.getBmi())
+                .build());
+    }
+
+    private static boolean sameVitals(VitalSignsMeasurement latest, ClinicalAssessmentRequestDTO request) {
+        return Objects.equals(latest.getBloodPressure(), request.getBloodPressure())
+                && sameNumber(latest.getHeightCm(), request.getHeightCm())
+                && sameNumber(latest.getWeightKg(), request.getWeightKg())
+                && sameNumber(latest.getBmi(), request.getBmi());
+    }
+
+    /** {@code BigDecimal.equals} compares scale, so 1.7 and 1.70 would look different. */
+    private static boolean sameNumber(BigDecimal left, BigDecimal right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return left.compareTo(right) == 0;
     }
 
     // ---- child sync helpers -------------------------------------------------
