@@ -17,7 +17,7 @@ import lombok.*;
 public class AiChatSession extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler", "patient" })
     private Admission episode;
 

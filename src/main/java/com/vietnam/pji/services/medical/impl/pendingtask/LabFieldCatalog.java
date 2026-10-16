@@ -78,7 +78,7 @@ public class LabFieldCatalog {
 
     private static final Set<String> ELIGIBLE_COMPLETENESS_FIELDS = Set.of(
             "sinus_tract",
-            "culture_results",
+            "specimen_cultures",
             "positive_histology",
             "infection_type",
             "implant_stability",

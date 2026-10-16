@@ -81,7 +81,7 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
         // 1. snapshot_metadata
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("snapshot_at", Instant.now().toString());
-        metadata.put("episode_id", episode.getId());
+        metadata.put("admission_id", episode.getId());
         metadata.put("patient_id", patient.getId());
         List<String> dataSources = new ArrayList<>();
 
@@ -162,8 +162,8 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
             clinical.put("infection_assessment", infection);
 
             clinical.put("notations", cr.getNotations());
-            snapshot.put("clinical_records", clinical);
-            dataSources.add("clinical_records");
+            snapshot.put("clinical_assessments", clinical);
+            dataSources.add("clinical_assessments");
             completedSections++;
         }
 
@@ -205,8 +205,8 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
                 labResults.put("historical_trends", trendList);
             }
 
-            snapshot.put("lab_results", labResults);
-            dataSources.add("lab_results");
+            snapshot.put("lab_reports", labResults);
+            dataSources.add("lab_reports");
             completedSections++;
         }
 
@@ -233,8 +233,8 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
             }
             Map<String, Object> imagesMap = new LinkedHashMap<>();
             imagesMap.put("items", imageItems);
-            snapshot.put("image_results", imagesMap);
-            dataSources.add("image_results");
+            snapshot.put("imaging_studies", imagesMap);
+            dataSources.add("imaging_studies");
         }
 
         // 8. culture_results with nested sensitivities
@@ -250,7 +250,7 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
             List<Map<String, Object>> cultureItems = new ArrayList<>();
             for (SpecimenCulture c : cultures) {
                 Map<String, Object> item = new LinkedHashMap<>();
-                item.put("culture_id", c.getId());
+                item.put("specimen_culture_id", c.getId());
                 item.put("organism_name", c.getName());
                 item.put("result_status", c.getResult());
                 item.put("gram_type", c.getGramType());
@@ -277,9 +277,9 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
             }
             Map<String, Object> culturesMap = new LinkedHashMap<>();
             culturesMap.put("items", cultureItems);
-            snapshot.put("culture_results", culturesMap);
-            dataSources.add("culture_results");
-            dataSources.add("sensitivity_results");
+            snapshot.put("specimen_cultures", culturesMap);
+            dataSources.add("specimen_cultures");
+            dataSources.add("antibiotic_susceptibilities");
             completedSections++;
         }
 
@@ -293,16 +293,16 @@ public class AdmissionSnapshotAssemblerServiceImpl implements AdmissionSnapshotA
         ordered.put("patient_demographics", snapshot.get("patient_demographics"));
         if (snapshot.containsKey("medical_history"))
             ordered.put("medical_history", snapshot.get("medical_history"));
-        if (snapshot.containsKey("clinical_records"))
-            ordered.put("clinical_records", snapshot.get("clinical_records"));
+        if (snapshot.containsKey("clinical_assessments"))
+            ordered.put("clinical_assessments", snapshot.get("clinical_assessments"));
         if (snapshot.containsKey("surgeries"))
             ordered.put("surgeries", snapshot.get("surgeries"));
-        if (snapshot.containsKey("lab_results"))
-            ordered.put("lab_results", snapshot.get("lab_results"));
-        if (snapshot.containsKey("image_results"))
-            ordered.put("image_results", snapshot.get("image_results"));
-        if (snapshot.containsKey("culture_results"))
-            ordered.put("culture_results", snapshot.get("culture_results"));
+        if (snapshot.containsKey("lab_reports"))
+            ordered.put("lab_reports", snapshot.get("lab_reports"));
+        if (snapshot.containsKey("imaging_studies"))
+            ordered.put("imaging_studies", snapshot.get("imaging_studies"));
+        if (snapshot.containsKey("specimen_cultures"))
+            ordered.put("specimen_cultures", snapshot.get("specimen_cultures"));
 
         BigDecimal completeness = totalSections > 0
                 ? BigDecimal.valueOf(completedSections * 100.0 / totalSections).setScale(2, BigDecimal.ROUND_HALF_UP)

@@ -19,7 +19,7 @@ public class MedicalHistory extends AbstractEntity<Long> implements Serializable
     @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     private Admission episode;
 
     @Column(name = "medical_history", columnDefinition = "TEXT")

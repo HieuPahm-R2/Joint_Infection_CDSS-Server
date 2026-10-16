@@ -31,7 +31,7 @@ class LabFieldFulfillmentDetectorTest {
     @Test
     void onlyWhitelistedCompletenessFieldsCanOpenATask() {
         assertThat(catalog.isEligibleField("serum_CRP")).isTrue();
-        assertThat(catalog.isEligibleField("culture_results")).isTrue();
+        assertThat(catalog.isEligibleField("specimen_cultures")).isTrue();
         // The AI may propose anything; an unsupported field must not open a task.
         assertThat(catalog.isEligibleField("serum_procalcitonin")).isFalse();
         assertThat(catalog.isEligibleField("")).isFalse();
@@ -129,13 +129,13 @@ class LabFieldFulfillmentDetectorTest {
         SpecimenCulture noGrowth = SpecimenCulture.builder().result(CultureStatus.NO_GROWTH).build();
         SpecimenCulture named = SpecimenCulture.builder().result(CultureStatus.PENDING).name("S. aureus").build();
 
-        assertThat(detector.isClinicalFieldSatisfied("culture_results", null, null, List.of(pending), List.of()))
+        assertThat(detector.isClinicalFieldSatisfied("specimen_cultures", null, null, List.of(pending), List.of()))
                 .isFalse();
-        assertThat(detector.isClinicalFieldSatisfied("culture_results", null, null, List.of(notPerformed), List.of()))
+        assertThat(detector.isClinicalFieldSatisfied("specimen_cultures", null, null, List.of(notPerformed), List.of()))
                 .isFalse();
-        assertThat(detector.isClinicalFieldSatisfied("culture_results", null, null, List.of(noGrowth), List.of()))
+        assertThat(detector.isClinicalFieldSatisfied("specimen_cultures", null, null, List.of(noGrowth), List.of()))
                 .isTrue();
-        assertThat(detector.isClinicalFieldSatisfied("culture_results", null, null, List.of(named), List.of()))
+        assertThat(detector.isClinicalFieldSatisfied("specimen_cultures", null, null, List.of(named), List.of()))
                 .isTrue();
     }
 

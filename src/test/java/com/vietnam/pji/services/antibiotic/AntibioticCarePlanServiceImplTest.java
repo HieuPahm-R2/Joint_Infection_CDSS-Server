@@ -66,7 +66,7 @@ class AntibioticCarePlanServiceImplTest {
                 .thenReturn(List.of(draft, signed));
         when(snapshotService.buildSnapshot(91L)).thenReturn(
                 AdmissionSnapshotAssemblerService.SnapshotBuildResult.builder()
-                        .snapshotDataJson(Map.of("snapshot_metadata", Map.of("episode_id", 91L)))
+                        .snapshotDataJson(Map.of("snapshot_metadata", Map.of("admission_id", 91L)))
                         .build());
         when(aiServiceClient.generateAntibioticCarePlan(any())).thenReturn(
                 AiAntibioticCarePlanResponseDTO.builder()

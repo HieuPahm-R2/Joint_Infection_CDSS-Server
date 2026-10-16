@@ -217,8 +217,8 @@ class PjiDiagnosticSnapshotReader {
     }
 
     private List<LabDatum> collectLabDatums(Map<String, Object> snapshot) {
-        Object latestObject = getNested(snapshot, "lab_results", "latest")
-                .orElseGet(() -> getNested(snapshot, "lab_results").orElse(null));
+        Object latestObject = getNested(snapshot, "lab_reports", "latest")
+                .orElseGet(() -> getNested(snapshot, "lab_reports").orElse(null));
         Map<String, Object> latest = asMap(latestObject);
         if (latest == null) {
             return List.of();
@@ -267,10 +267,10 @@ class PjiDiagnosticSnapshotReader {
 
     private List<String> collectClinicalTexts(Map<String, Object> snapshot) {
         List<String> texts = new ArrayList<>();
-        getNested(snapshot, "clinical_records", "infection_assessment", "soft_tissue").map(Object::toString).ifPresent(texts::add);
-        getNested(snapshot, "clinical_records", "notations").map(Object::toString).ifPresent(texts::add);
+        getNested(snapshot, "clinical_assessments", "infection_assessment", "soft_tissue").map(Object::toString).ifPresent(texts::add);
+        getNested(snapshot, "clinical_assessments", "notations").map(Object::toString).ifPresent(texts::add);
         collectTexts(getNested(snapshot, "surgeries", "items").orElse(null), "findings", null, texts);
-        collectTexts(getNested(snapshot, "culture_results", "items").orElse(null), "sample_type", "notes", texts);
+        collectTexts(getNested(snapshot, "specimen_cultures", "items").orElse(null), "sample_type", "notes", texts);
         return texts;
     }
 

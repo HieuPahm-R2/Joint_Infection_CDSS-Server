@@ -19,11 +19,11 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "clinical_records")
+@Table(name = "clinical_assessments")
 public class ClinicalAssessment extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

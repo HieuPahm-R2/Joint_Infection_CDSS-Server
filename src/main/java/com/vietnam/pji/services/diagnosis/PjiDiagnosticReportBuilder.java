@@ -198,7 +198,7 @@ class PjiDiagnosticReportBuilder {
 
     private String primaryDiagnosis(Map<String, Object> snapshot, String interpretation,
             String infectionClassification) {
-        String joint = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "prosthesis_joint")
+        String joint = snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "prosthesis_joint")
                 .map(Object::toString).filter(value -> !value.isBlank()).map(value -> " " + value.replace('_', ' ')).orElse("");
         return switch (interpretation) {
             case "INFECTED" -> "Nhiễm trùng khớp nhân tạo" + joint + " "
@@ -223,17 +223,17 @@ class PjiDiagnosticReportBuilder {
             return "Đã phân loại PJI nhưng chưa đủ dữ liệu thời điểm khởi phát để phân loại cấp/mạn.";
         }
         List<String> facts = new ArrayList<>();
-        String onsetTiming = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "onset_timing")
-                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_infection_type"))
-                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "onset_timing"))
+        String onsetTiming = snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "onset_timing")
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "suspected_infection_type"))
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_assessments", "onset_timing"))
                 .map(Object::toString).filter(value -> !value.isBlank()).orElse("không ghi nhận");
         facts.add("Phân loại " + infectionClassificationLabel(infectionClassification)
                 + " theo thời điểm khởi phát: " + onsetTiming);
-        snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_transmission_route")
+        snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "suspected_transmission_route")
                 .ifPresent(value -> facts.add("đường lây nhiễm nghi ngờ: " + value));
-        snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "hematogenous_suspected")
+        snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "hematogenous_suspected")
                 .ifPresent(value -> facts.add("nghi đường máu: " + value));
-        snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "implant_stability")
+        snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "implant_stability")
                 .ifPresent(value -> facts.add("ổn định implant: " + value));
         return String.join("; ", facts) + ".";
     }

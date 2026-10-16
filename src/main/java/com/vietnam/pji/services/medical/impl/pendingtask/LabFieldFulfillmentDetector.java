@@ -45,7 +45,7 @@ public class LabFieldFulfillmentDetector {
             "infection_type",
             "implant_stability",
             "allergies",
-            "culture_results",
+            "specimen_cultures",
             "positive_histology");
 
     private final LabFieldCatalog catalog;
@@ -92,7 +92,7 @@ public class LabFieldFulfillmentDetector {
                     && record.getImplantStability() != null
                     && record.getImplantStability() != ImplantStability.UNKNOWN;
             case "allergies" -> history != null && history.getIsAllergy() != null;
-            case "culture_results" -> hasUsableCultureResult(cultures);
+            case "specimen_cultures" -> hasUsableCultureResult(cultures);
             case "positive_histology" -> hasHistologyFindings(surgeries);
             default -> false;
         };

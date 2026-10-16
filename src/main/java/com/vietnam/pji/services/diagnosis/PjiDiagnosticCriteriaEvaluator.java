@@ -20,7 +20,7 @@ class PjiDiagnosticCriteriaEvaluator {
     }
 
     MajorCriterion evaluateSinusTract(Map<String, Object> snapshot) {
-        Optional<Object> value = snapshotReader.getNested(snapshot, "clinical_records", "symptoms", "sinus_tract");
+        Optional<Object> value = snapshotReader.getNested(snapshot, "clinical_assessments", "symptoms", "sinus_tract");
         if (value.isEmpty()) {
             return new MajorCriterion(null, "Chưa có dữ liệu đánh giá đường rò.");
         }
@@ -138,9 +138,9 @@ class PjiDiagnosticCriteriaEvaluator {
     }
 
     private ClinicalPhase clinicalPhase(Map<String, Object> snapshot) {
-        Object raw = snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "onset_timing")
-                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "infection_assessment", "suspected_infection_type"))
-                .or(() -> snapshotReader.getNested(snapshot, "clinical_records", "onset_timing"))
+        Object raw = snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "onset_timing")
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_assessments", "infection_assessment", "suspected_infection_type"))
+                .or(() -> snapshotReader.getNested(snapshot, "clinical_assessments", "onset_timing"))
                 .orElse(null);
         String normalized = PjiDiagnosticSnapshotReader.normalizeToken(raw);
         if (Set.of("early", "acute", "acutepostoperative", "acutehematogenous", "earlypostoperative")

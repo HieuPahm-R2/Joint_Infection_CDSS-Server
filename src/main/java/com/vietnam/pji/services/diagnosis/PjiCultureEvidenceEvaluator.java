@@ -20,9 +20,9 @@ class PjiCultureEvidenceEvaluator {
     }
 
     CultureEvidence evaluate(Map<String, Object> snapshot) {
-        Object cultureItems = snapshotReader.getNested(snapshot, "culture_results", "items").orElse(null);
+        Object cultureItems = snapshotReader.getNested(snapshot, "specimen_cultures", "items").orElse(null);
         List<?> rawItems = cultureItems instanceof List<?> list ? list : List.of();
-        Boolean explicitPerformed = snapshotReader.getNested(snapshot, "culture_results", "performed")
+        Boolean explicitPerformed = snapshotReader.getNested(snapshot, "specimen_cultures", "performed")
                 .map(snapshotReader::asBoolean).orElse(null);
         Boolean performed = explicitPerformed != null ? explicitPerformed
                 : cultureItems instanceof List<?> ? Boolean.TRUE : null;

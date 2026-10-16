@@ -207,7 +207,7 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
         MedicalHistory medicalHistory = needsField(pendingTasks, "allergies")
                 ? medicalHistoryRepository.findByEpisodeId(episodeId).orElse(null)
                 : null;
-        List<SpecimenCulture> cultures = needsField(pendingTasks, "culture_results")
+        List<SpecimenCulture> cultures = needsField(pendingTasks, "specimen_cultures")
                 ? cultureResultRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId)
                 : List.of();
         List<Surgery> surgeries = needsField(pendingTasks, "positive_histology")
@@ -289,8 +289,8 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
 
     /**
      * Transition a task to FULFILLED, first removing any stale FULFILLED row for
-     * the same (episode, field). The unique constraint
-     * {@code uq_pending_episode_field(episode_id, field, status)} otherwise
+     * the same (admission, field). The unique constraint
+     * {@code uq_pending_admission_field(admission_id, field, status)} otherwise
      * rejects a second FULFILLED row when an earlier run already fulfilled the
      * field. We delete-then-flush before the UPDATE because Hibernate would
      * otherwise order the UPDATE ahead of the DELETE and still collide.

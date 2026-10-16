@@ -15,11 +15,11 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "lab_results")
+@Table(name = "lab_reports")
 public class LabReport extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

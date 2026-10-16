@@ -15,11 +15,11 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "case_clinical_snapshots")
+@Table(name = "clinical_snapshots")
 public class ClinicalSnapshot extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id", nullable = false)
+    @JoinColumn(name = "admission_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

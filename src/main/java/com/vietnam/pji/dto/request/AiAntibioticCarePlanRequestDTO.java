@@ -19,7 +19,7 @@ public class AiAntibioticCarePlanRequestDTO implements Serializable {
     @JsonProperty("request_id")
     private String requestId;
 
-    @JsonProperty("episode_id")
+    @JsonProperty("admission_id")
     private Long episodeId;
 
     @JsonProperty("snapshot_data_json")

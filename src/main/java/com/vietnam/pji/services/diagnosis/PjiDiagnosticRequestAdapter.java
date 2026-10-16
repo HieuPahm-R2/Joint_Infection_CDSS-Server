@@ -27,7 +27,7 @@ class PjiDiagnosticRequestAdapter {
             clinicalRecords.put("infection_assessment", Map.of(
                     "onset_timing", request.daysSinceArthroplasty() < 90 ? "ACUTE_POSTOPERATIVE" : "CHRONIC"));
         }
-        snapshot.put("clinical_records", clinicalRecords);
+        snapshot.put("clinical_assessments", clinicalRecords);
 
         Map<String, Object> labs = new LinkedHashMap<>();
         if (request.serumTests() != null) {
@@ -42,10 +42,10 @@ class PjiDiagnosticRequestAdapter {
         putQualitativeLab(labs, "leukocyte_esterase", leukocyteEsteraseValue(request.leukocyteEsterase()));
         putQualitativeLab(labs, "alpha_defensin", ternaryValue(request.alphaDefensin()));
         if (!labs.isEmpty()) {
-            snapshot.put("lab_results", labs);
+            snapshot.put("lab_reports", labs);
         }
 
-        snapshot.put("culture_results", cultureResults(request.culturesPerformed(), request.cultureResult()));
+        snapshot.put("specimen_cultures", cultureResults(request.culturesPerformed(), request.cultureResult()));
         Map<String, Object> surgery = new LinkedHashMap<>();
         putTernaryEvidence(surgery, "positive_histology", request.histology());
         putTernaryEvidence(surgery, "intraoperative_purulence", request.purulence());

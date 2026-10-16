@@ -16,12 +16,12 @@ import lombok.*;
 @AllArgsConstructor
 @Entity
 @Table(name = "pending_lab_tasks", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_pending_episode_field", columnNames = { "episode_id", "field", "status" })
+        @UniqueConstraint(name = "uq_pending_admission_field", columnNames = { "admission_id", "field", "status" })
 })
 public class PendingLabTask extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id", nullable = false)
+    @JoinColumn(name = "admission_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

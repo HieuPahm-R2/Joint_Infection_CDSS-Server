@@ -15,7 +15,7 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "image_results")
+@Table(name = "imaging_studies")
 public class ImagingStudy implements Serializable {
 
     @Id
@@ -23,7 +23,7 @@ public class ImagingStudy implements Serializable {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

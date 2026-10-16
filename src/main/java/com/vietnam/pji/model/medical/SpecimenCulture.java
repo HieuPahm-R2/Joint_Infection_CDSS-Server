@@ -15,11 +15,11 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "culture_results")
+@Table(name = "specimen_cultures")
 public class SpecimenCulture extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id")
+    @JoinColumn(name = "admission_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

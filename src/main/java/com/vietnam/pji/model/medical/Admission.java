@@ -20,10 +20,10 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "pji_episodes")
+@Table(name = "admissions")
 public class Admission extends AbstractEntity<Long> {
 
-    @Column(name = "medical_record_code", nullable = false, unique = true, length = 14, updatable = false)
+    @Column(name = "record_number", nullable = false, unique = true, length = 14, updatable = false)
     private String medicalRecordCode;
 
     @ManyToOne(fetch = FetchType.LAZY)

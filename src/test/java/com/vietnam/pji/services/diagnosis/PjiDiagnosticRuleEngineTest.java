@@ -21,17 +21,17 @@ class PjiDiagnosticRuleEngineTest {
     @Test
     void evaluateUsesMajorCultureCriteriaAndFlatLabTemplateShape() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "clinical_records", Map.of(
+                "clinical_assessments", Map.of(
                         "symptoms", Map.of("sinus_tract", false),
                         "infection_assessment", Map.of("prosthesis_joint", "HIP_RIGHT", "onset_timing", "CHRONIC")),
-                "lab_results", Map.of(
+                "lab_reports", Map.of(
                         "esr", Map.of("value", 18, "unit", "mm/h"),
                         "crp", Map.of("value", 95.3, "unit", "mg/L"),
                         "d_dimer", Map.of("value", 1.85, "unit", "mg/L FEU"),
                         "synovial_wbc", Map.of("value", 52000, "unit", "cells/µL"),
                         "synovial_pmn", Map.of("value", 92, "unit", "%"),
                         "alpha_defensin", Map.of("value", "NOT DETECTED")),
-                "culture_results", Map.of("items", List.of(
+                "specimen_cultures", Map.of("items", List.of(
                         Map.of("organism_name", "Staphylococcus aureus", "result_status", "POSITIVE"),
                         Map.of("organism_name", "Staphylococcus aureus", "result_status", "POSITIVE")))));
 
@@ -72,13 +72,13 @@ class PjiDiagnosticRuleEngineTest {
                 "alpha_defensin", Map.of("value", 0.5));
 
         PjiDiagnosticRuleEngine.DiagnosticResult acute = engine.evaluate(Map.of(
-                "clinical_records", Map.of(
+                "clinical_assessments", Map.of(
                         "symptoms", Map.of("sinus_tract", true),
                         "infection_assessment", Map.of("onset_timing", "EARLY")),
-                "lab_results", labs));
+                "lab_reports", labs));
         PjiDiagnosticRuleEngine.DiagnosticResult chronic = engine.evaluate(Map.of(
-                "clinical_records", Map.of("infection_assessment", Map.of("onset_timing", "CHRONIC")),
-                "lab_results", labs));
+                "clinical_assessments", Map.of("infection_assessment", Map.of("onset_timing", "CHRONIC")),
+                "lab_reports", labs));
 
         assertEquals(0, map(acute.itemJson().get("scoring_system")).get("total_score"));
         assertEquals(8, map(chronic.itemJson().get("scoring_system")).get("total_score"));
@@ -93,10 +93,10 @@ class PjiDiagnosticRuleEngineTest {
     @Test
     void evaluateCapsReferenceTableMinorCriteriaAtSixteenPoints() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "clinical_records", Map.of(
+                "clinical_assessments", Map.of(
                         "symptoms", Map.of("sinus_tract", false),
                         "infection_assessment", Map.of("onset_timing", "CHRONIC")),
-                "lab_results", Map.of(
+                "lab_reports", Map.of(
                         "crp", Map.of("value", 11, "unit", "mg/L"),
                         "d_dimer", Map.of("value", 900, "unit", "ng/mL FEU"),
                         "esr", Map.of("value", 31, "unit", "mm/h"),
@@ -104,7 +104,7 @@ class PjiDiagnosticRuleEngineTest {
                         "synovial_pmn", Map.of("value", 81, "unit", "%"),
                         "alpha_defensin", Map.of("value", 1.0),
                         "leukocyte_esterase", Map.of("value", "++")),
-                "culture_results", Map.of("items", List.of(
+                "specimen_cultures", Map.of("items", List.of(
                         Map.of("organism_name", "Staphylococcus epidermidis", "result_status", "POSITIVE"))),
                 "surgeries", Map.of("items", List.of(Map.of(
                         "findings", "Positive histology >5 PMN/HPF; purulence present")))));
@@ -145,7 +145,7 @@ class PjiDiagnosticRuleEngineTest {
     @Test
     void evaluateUsesOnsetTimingAndSuspectedTransmissionRoute() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "clinical_records", Map.of(
+                "clinical_assessments", Map.of(
                         "symptoms", Map.of("sinus_tract", true),
                         "infection_assessment", Map.of(
                                 "onset_timing", "DELAYED_SUBACUTE",
@@ -163,7 +163,7 @@ class PjiDiagnosticRuleEngineTest {
     @Test
     void evaluateRetainsCultureResistanceWithoutWarningPayload() {
         PjiDiagnosticRuleEngine.DiagnosticResult result = engine.evaluate(Map.of(
-                "culture_results", Map.of("items", List.of(
+                "specimen_cultures", Map.of("items", List.of(
                         Map.of(
                                 "organism_name", "Staphylococcus aureus",
                                 "result_status", "POSITIVE",

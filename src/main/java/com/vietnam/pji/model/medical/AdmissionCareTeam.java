@@ -38,11 +38,11 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "episode_care_team")
+@Table(name = "admission_care_team")
 public class AdmissionCareTeam extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id", nullable = false)
+    @JoinColumn(name = "admission_id", nullable = false)
     private Admission episode;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -11,11 +11,11 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sensitivity_results")
+@Table(name = "antibiotic_susceptibilities")
 public class AntibioticSusceptibility extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "culture_id")
+    @JoinColumn(name = "specimen_culture_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private SpecimenCulture culture;
 

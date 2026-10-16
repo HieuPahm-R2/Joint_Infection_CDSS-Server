@@ -27,7 +27,7 @@ public class AiRecommendationGenerateRequestDTO implements Serializable {
     @JsonProperty("recommendation_scope")
     private String recommendationScope;
 
-    @JsonProperty("episode_id")
+    @JsonProperty("admission_id")
     private Long episodeId;
 
     @JsonProperty("snapshot_id")

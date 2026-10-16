@@ -24,7 +24,7 @@ import org.hibernate.type.SqlTypes;
 public class AiRecommendationRun extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "episode_id", nullable = false)
+    @JoinColumn(name = "admission_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private Admission episode;
 

@@ -233,8 +233,10 @@ Why phase 2 is contract-neutral, verified rather than assumed:
 - [x] Rehearse phase 4 (schema rename) end to end on a scratch copy and a
       throwaway database, including catalog verification and a green suite
       against the renamed schema.
-- [ ] Clear the two phase 4 gates: external consumers, and the ordering plus
-      `pji_dev` version.
+- [x] Clear the two phase 4 gates: the owner confirmed no external consumer reads
+      the table and column names, and `pji_dev` was brought to v36.
+- [x] Phase 4: schema rename executed as `V37`, with the JPA annotations
+      retargeted and the suite green against a database Flyway migrated to v37.
 - [x] Phase 3a: serve every episode-scoped route on `/admissions` as well, with
       an invariant test. Committed as `e1bf52d`.
 - [ ] Phase 3b: the JSON body keys. Blocked on a frontend-first move, because
@@ -781,6 +783,24 @@ Phase 2 was deliberately contract-neutral. Everything that still says "Episode"
 where a user can see it — the `@Tag`, `@ApiResponse` and response-message
 wording, the `/episodes` routes, and the JSON body keys — is phase 3 work, and
 the residual-identifier check confirms none of it moved.
+
+**Phase 4** — executed and committed. Both gates were cleared: the owner
+confirmed no external consumer reads the table and column names, and `pji_dev`
+was migrated from v35 to **v36** (31 tables, one care-team owner backfilled).
+`V37__rename_medical_record_objects.sql` renames 8 tables, 16 columns, 8
+sequences, 34 indexes and 19 constraints; the 29 files carrying JPA annotations
+were retargeted in the same change.
+
+Verified end to end: a fresh database received all **37 migrations** through
+Flyway, the suite returned **140 tests / 0 failures / 0 errors / BUILD SUCCESS**
+with `contextLoads` passing under `ddl-auto: validate`, the catalog reports the
+eight renamed tables and **0 tables or columns still carrying the old names**, a
+BOM scan returns 0, and `gitnexus detect-changes --scope all` reports 29 files,
+67 symbols, 3 affected processes, risk **medium**, with neither `partial` nor
+`truncated`.
+
+The medium rating, against phase 2's critical, reflects what the change actually
+is: annotation string values moved, while no symbol structure did.
 
 Known limits of this result:
 
