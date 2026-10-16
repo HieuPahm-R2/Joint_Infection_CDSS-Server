@@ -26,7 +26,7 @@ public class AiRecommendationController {
         private final AiRecommendationService aiRecommendationService;
         private final AiRecommendationStreamController streamController;
 
-        @PostMapping("/episodes/{episodeId}/diagnostic-test/evaluate")
+        @PostMapping({"/admissions/{episodeId}/diagnostic-test/evaluate", "/episodes/{episodeId}/diagnostic-test/evaluate"})
         @Operation(summary = "Evaluate PJI diagnostic test using backend rule engine only")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Rule-based diagnostic generated without calling RAG/AI"),
@@ -44,7 +44,7 @@ public class AiRecommendationController {
          * Async: publishes to RabbitMQ, returns 202 with run in PROCESSING status.
          * Client polls GET /ai-recommendations/runs/{runId} for the result.
          */
-        @PostMapping("/episodes/{episodeId}/ai-recommendations/generate")
+        @PostMapping({"/admissions/{episodeId}/ai-recommendations/generate", "/episodes/{episodeId}/ai-recommendations/generate"})
         @ResponseStatus(HttpStatus.ACCEPTED)
         @Operation(summary = "Generate AI recommendation (async via RabbitMQ)")
         @ApiResponses({
@@ -67,7 +67,7 @@ public class AiRecommendationController {
          * Sync fallback: calls AI service via HTTP, blocks until result.
          * Use this only when RabbitMQ is unavailable.
          */
-        @PostMapping("/episodes/{episodeId}/ai-recommendations/generate-sync")
+        @PostMapping({"/admissions/{episodeId}/ai-recommendations/generate-sync", "/episodes/{episodeId}/ai-recommendations/generate-sync"})
         @Operation(summary = "Generate AI recommendation (sync HTTP fallback)")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Recommendation generated synchronously"),
@@ -86,7 +86,7 @@ public class AiRecommendationController {
                                                 scope));
         }
 
-        @GetMapping("/episodes/{episodeId}/ai-recommendations/runs")
+        @GetMapping({"/admissions/{episodeId}/ai-recommendations/runs", "/episodes/{episodeId}/ai-recommendations/runs"})
         @Operation(summary = "Get AI recommendation run history for an episode")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Paginated run history"),

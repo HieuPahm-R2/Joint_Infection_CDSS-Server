@@ -55,7 +55,7 @@ public class LabReportController {
     }
 
     @Operation(summary = "List lab results by episode")
-    @GetMapping("/episodes/{episodeId}/lab-results")
+    @GetMapping({"/admissions/{episodeId}/lab-results", "/episodes/{episodeId}/lab-results"})
     public ResponseData<PaginationResultDTO> getLabResultsByEpisode(
             @PathVariable Long episodeId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch lab results successfully",

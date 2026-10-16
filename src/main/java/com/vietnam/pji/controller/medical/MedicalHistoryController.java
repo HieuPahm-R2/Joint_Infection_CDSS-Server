@@ -13,7 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("${api.prefix}/episodes/{episodeId}/medical-history")
+@RequestMapping({"${api.prefix}/admissions/{episodeId}/medical-history", "${api.prefix}/episodes/{episodeId}/medical-history"})
 @Validated
 @Tag(name = "Medical History", description = "Patient medical history for a given episode")
 @RequiredArgsConstructor

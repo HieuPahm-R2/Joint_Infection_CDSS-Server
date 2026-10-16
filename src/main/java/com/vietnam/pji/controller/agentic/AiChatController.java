@@ -48,7 +48,7 @@ public class AiChatController {
                                 aiChatService.getMessages(sessionId, pageable));
         }
 
-        @GetMapping("/episodes/{episodeId}/ai-chat/sessions")
+        @GetMapping({"/admissions/{episodeId}/ai-chat/sessions", "/episodes/{episodeId}/ai-chat/sessions"})
         @Operation(summary = "Get chat sessions for an episode")
         public ResponseData<PaginationResultDTO> getSessionsByEpisode(
                         @PathVariable Long episodeId, Pageable pageable) {

@@ -55,7 +55,7 @@ public class ClinicalAssessmentController {
     }
 
     @Operation(summary = "List clinical records by episode", description = "Paginated clinical records belonging to the given episode")
-    @GetMapping("/episodes/{episodeId}/clinical-records")
+    @GetMapping({"/admissions/{episodeId}/clinical-records", "/episodes/{episodeId}/clinical-records"})
     public ResponseData<PaginationResultDTO> getClinicalRecordsByEpisode(
             @PathVariable Long episodeId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch clinical records successfully",

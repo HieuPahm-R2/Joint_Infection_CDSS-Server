@@ -55,7 +55,7 @@ public class SpecimenCultureController {
     }
 
     @Operation(summary = "List culture results by episode", description = "Paginated culture results belonging to the given episode")
-    @GetMapping("/episodes/{episodeId}/culture-results")
+    @GetMapping({"/admissions/{episodeId}/culture-results", "/episodes/{episodeId}/culture-results"})
     public ResponseData<PaginationResultDTO> getCultureResultsByEpisode(
             @PathVariable Long episodeId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch culture results successfully",

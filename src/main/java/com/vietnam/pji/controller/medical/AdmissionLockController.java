@@ -28,7 +28,7 @@ public class AdmissionLockController {
     @Operation(summary = "Acquire edit lock", description = "Doctor starts editing. Creates a Redis lock with a 3-minute TTL. "
             +
             "Returns 423 LOCKED if another user already holds the lock.")
-    @PostMapping("/episodes/{id}/lock")
+    @PostMapping({"/admissions/{id}/lock", "/episodes/{id}/lock"})
     public ResponseData<AdmissionLockResponseDTO> acquire(@PathVariable("id") Long episodeId) {
         Long userId = currentUserId();
         return new ResponseData<>(HttpStatus.OK.value(), "Lock acquired",
@@ -37,7 +37,7 @@ public class AdmissionLockController {
 
     @Operation(summary = "Heartbeat / renew lock", description = "Extend the TTL while the editor is still open. " +
             "Returns 423 LOCKED if the caller is no longer the holder.")
-    @PostMapping("/episodes/{id}/lock/heartbeat")
+    @PostMapping({"/admissions/{id}/lock/heartbeat", "/episodes/{id}/lock/heartbeat"})
     public ResponseData<AdmissionLockResponseDTO> heartbeat(@PathVariable("id") Long episodeId) {
         Long userId = currentUserId();
         return new ResponseData<>(HttpStatus.OK.value(), "Lock renewed",
@@ -46,7 +46,7 @@ public class AdmissionLockController {
 
     @Operation(summary = "Release lock", description = "Release the lock after the doctor saves or cancels the edit. " +
             "No-op if the lock has already expired or belongs to someone else.")
-    @DeleteMapping("/episodes/{id}/lock")
+    @DeleteMapping({"/admissions/{id}/lock", "/episodes/{id}/lock"})
     public ResponseData<Void> release(@PathVariable("id") Long episodeId) {
         Long userId = currentUserId();
         episodeLockService.release(episodeId, userId);

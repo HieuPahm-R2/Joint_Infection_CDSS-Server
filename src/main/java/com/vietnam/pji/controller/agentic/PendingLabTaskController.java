@@ -55,7 +55,7 @@ public class PendingLabTaskController {
     }
 
     @Operation(summary = "Create tasks from completeness check", description = "Bulk-creates pending lab tasks from AI completeness output for the given episode")
-    @PostMapping("/episodes/{episodeId}/pending-lab-tasks/from-completeness")
+    @PostMapping({"/admissions/{episodeId}/pending-lab-tasks/from-completeness", "/episodes/{episodeId}/pending-lab-tasks/from-completeness"})
     @ResponseStatus(HttpStatus.CREATED)
     @SuppressWarnings("unchecked")
     public ResponseData<Void> createFromCompleteness(

@@ -55,7 +55,7 @@ public class SurgeryController {
     }
 
     @Operation(summary = "List surgeries by episode")
-    @GetMapping("/episodes/{episodeId}/surgeries")
+    @GetMapping({"/admissions/{episodeId}/surgeries", "/episodes/{episodeId}/surgeries"})
     public ResponseData<PaginationResultDTO> getSurgeriesByEpisode(
             @PathVariable Long episodeId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch surgeries successfully",

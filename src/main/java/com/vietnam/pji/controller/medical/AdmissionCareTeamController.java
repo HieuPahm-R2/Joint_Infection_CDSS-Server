@@ -50,7 +50,7 @@ public class AdmissionCareTeamController {
 
     @Operation(summary = "List the episode's care team",
             description = "Requires ownership, care-team membership or an active administrator.")
-    @GetMapping("/episodes/{episodeId}/care-team")
+    @GetMapping({"/admissions/{episodeId}/care-team", "/episodes/{episodeId}/care-team"})
     public ResponseData<List<AdmissionCareTeamMemberDTO>> list(@PathVariable Long episodeId) {
         return new ResponseData<>(HttpStatus.OK.value(), "Care team loaded",
                 careTeamService.listMembers(episodeId));
@@ -60,7 +60,7 @@ public class AdmissionCareTeamController {
             description = "Requires the caller to be the episode's owner or an active administrator. "
                     + "Re-activates a previously revoked membership. Role must be "
                     + "OWNER, DOCTOR, PHARMACIST or NURSE.")
-    @PostMapping("/episodes/{episodeId}/care-team")
+    @PostMapping({"/admissions/{episodeId}/care-team", "/episodes/{episodeId}/care-team"})
     public ResponseData<AdmissionCareTeamMemberDTO> assign(
             @PathVariable Long episodeId,
             @Valid @RequestBody AssignCareTeamMemberRequestDTO request) {
@@ -77,7 +77,7 @@ public class AdmissionCareTeamController {
     @Operation(summary = "Revoke clinical record access",
             description = "Requires the caller to be the episode's owner or an active administrator. "
                     + "The last active owner cannot be revoked.")
-    @DeleteMapping("/episodes/{episodeId}/care-team/{userId}")
+    @DeleteMapping({"/admissions/{episodeId}/care-team/{userId}", "/episodes/{episodeId}/care-team/{userId}"})
     public ResponseData<Void> revoke(@PathVariable Long episodeId, @PathVariable Long userId) {
         careTeamService.revokeMember(episodeId, userId);
         return new ResponseData<>(HttpStatus.OK.value(), "Care team member revoked");

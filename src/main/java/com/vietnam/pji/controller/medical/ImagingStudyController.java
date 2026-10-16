@@ -55,7 +55,7 @@ public class ImagingStudyController {
     }
 
     @Operation(summary = "List image results by episode")
-    @GetMapping("/episodes/{episodeId}/image-results")
+    @GetMapping({"/admissions/{episodeId}/image-results", "/episodes/{episodeId}/image-results"})
     public ResponseData<PaginationResultDTO> getImageResultsByEpisode(
             @PathVariable Long episodeId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch image results successfully",

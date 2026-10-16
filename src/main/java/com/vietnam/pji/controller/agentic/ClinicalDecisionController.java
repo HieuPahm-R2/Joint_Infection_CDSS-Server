@@ -24,7 +24,7 @@ public class ClinicalDecisionController {
 
     private final ClinicalDecisionService clinicalDecisionService;
 
-    @GetMapping("/episodes/{episodeId}/clinical-decisions/workspace")
+    @GetMapping({"/admissions/{episodeId}/clinical-decisions/workspace", "/episodes/{episodeId}/clinical-decisions/workspace"})
     @Operation(summary = "Get all AI runs and decision status for an episode")
     public ResponseData<ClinicalDecisionWorkspaceDTO> getWorkspace(@PathVariable Long episodeId) {
         return ok("Fetch clinical decision workspace successfully",
@@ -74,7 +74,7 @@ public class ClinicalDecisionController {
                 clinicalDecisionService.signPharmacistDecision(runId, request));
     }
 
-    @PutMapping("/episodes/{episodeId}/clinical-decisions/final-run/{runId}")
+    @PutMapping({"/admissions/{episodeId}/clinical-decisions/final-run/{runId}", "/episodes/{episodeId}/clinical-decisions/final-run/{runId}"})
     @Operation(summary = "Select a fully signed AI run as the episode final version")
     public ResponseData<RunDecision> selectFinalRun(
             @PathVariable Long episodeId,

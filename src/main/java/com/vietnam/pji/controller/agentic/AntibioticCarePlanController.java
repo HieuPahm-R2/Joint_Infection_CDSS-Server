@@ -22,7 +22,7 @@ public class AntibioticCarePlanController {
 
     private final AntibioticCarePlanService antibioticCarePlanService;
 
-    @PostMapping("/episodes/{episodeId}/antibiotic-care-plan/generate")
+    @PostMapping({"/admissions/{episodeId}/antibiotic-care-plan/generate", "/episodes/{episodeId}/antibiotic-care-plan/generate"})
     @Operation(summary = "Generate a care plan from the latest signed pharmacist regimen")
     public ResponseData<AntibioticCarePlanResponseDTO> generate(@PathVariable Long episodeId) {
         return new ResponseData<>(

@@ -26,7 +26,7 @@ public class DoctorRecommendationReviewController {
     private final DoctorRecommendationReviewService reviewService;
     private final RecommendationAccessService recommendationAccessService;
 
-    @PostMapping("/episodes/{episodeId}/doctor-reviews")
+    @PostMapping({"/admissions/{episodeId}/doctor-reviews", "/episodes/{episodeId}/doctor-reviews"})
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create or update a doctor review for an AI recommendation run")
     public ResponseData<DoctorRecommendationReview> createReview(
@@ -46,7 +46,7 @@ public class DoctorRecommendationReviewController {
                 reviewService.getReviewByRunId(runId));
     }
 
-    @GetMapping("/episodes/{episodeId}/doctor-reviews")
+    @GetMapping({"/admissions/{episodeId}/doctor-reviews", "/episodes/{episodeId}/doctor-reviews"})
     @Operation(summary = "Get all doctor reviews for an episode")
     public ResponseData<List<DoctorRecommendationReview>> getReviewsByEpisode(@PathVariable Long episodeId) {
         recommendationAccessService.assertCanAccessEpisode(episodeId);
@@ -55,7 +55,7 @@ public class DoctorRecommendationReviewController {
                 reviewService.getReviewsByEpisodeId(episodeId));
     }
 
-    @GetMapping("/episodes/{episodeId}/doctor-reviews/final-decision")
+    @GetMapping({"/admissions/{episodeId}/doctor-reviews/final-decision", "/episodes/{episodeId}/doctor-reviews/final-decision"})
     @Operation(summary = "Get the selected final recommendation version for an episode")
     public ResponseData<DoctorRecommendationReview> getFinalDecision(@PathVariable Long episodeId) {
         recommendationAccessService.assertCanAccessEpisode(episodeId);
@@ -64,7 +64,7 @@ public class DoctorRecommendationReviewController {
                 reviewService.getFinalDecisionByEpisodeId(episodeId));
     }
 
-    @PutMapping("/episodes/{episodeId}/doctor-reviews/{reviewId}/final-decision")
+    @PutMapping({"/admissions/{episodeId}/doctor-reviews/{reviewId}/final-decision", "/episodes/{episodeId}/doctor-reviews/{reviewId}/final-decision"})
     @Operation(summary = "Select one reviewed recommendation version as final")
     public ResponseData<DoctorRecommendationReview> selectFinalDecision(
             @PathVariable Long episodeId,

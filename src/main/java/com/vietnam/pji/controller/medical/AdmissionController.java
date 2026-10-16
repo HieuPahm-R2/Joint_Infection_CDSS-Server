@@ -41,7 +41,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "201", description = "Episode created"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PostMapping("/episodes")
+    @PostMapping({"/admissions", "/episodes"})
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseData<Admission> createEpisode(@Valid @RequestBody AdmissionRequestDTO request) {
         return new ResponseData<>(HttpStatus.CREATED.value(), "Episode created successfully",
@@ -54,7 +54,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
-    @PutMapping("/episodes/{id}")
+    @PutMapping({"/admissions/{id}", "/episodes/{id}"})
     public ResponseData<Admission> updateEpisode(@PathVariable Long id,
             @Valid @RequestBody AdmissionRequestDTO request) {
         return new ResponseData<>(HttpStatus.OK.value(), "Episode updated successfully",
@@ -67,7 +67,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
-    @GetMapping("/episodes/{id}")
+    @GetMapping({"/admissions/{id}", "/episodes/{id}"})
     public ResponseData<Admission> getEpisode(@PathVariable Long id) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch episode successfully", episodeService.getById(id));
     }
@@ -78,7 +78,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
-    @DeleteMapping("/episodes/{id}")
+    @DeleteMapping({"/admissions/{id}", "/episodes/{id}"})
     public ResponseData<Void> deleteEpisode(@PathVariable Long id) {
         episodeService.delete(id);
         return new ResponseData<>(HttpStatus.OK.value(), "Episode deleted successfully");
@@ -89,7 +89,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "200", description = "Paginated episode list"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @GetMapping("/episodes")
+    @GetMapping({"/admissions", "/episodes"})
     public ResponseData<PaginationResultDTO> getAllEpisodes(
             @Filter Specification<Admission> spec, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch episodes successfully",
@@ -101,7 +101,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "200", description = "Paginated episodes for the patient"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @GetMapping("/patients/{patientId}/episodes")
+    @GetMapping({"/patients/{patientId}/admissions", "/patients/{patientId}/episodes"})
     public ResponseData<PaginationResultDTO> getEpisodesByPatient(
             @PathVariable Long patientId, Pageable pageable) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch patient episodes successfully",
@@ -115,7 +115,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
-    @GetMapping("/episodes/{id}/full")
+    @GetMapping({"/admissions/{id}/full", "/episodes/{id}/full"})
     public ResponseData<AdmissionFullResponseDTO> getEpisodeFull(@PathVariable Long id) {
         return new ResponseData<>(HttpStatus.OK.value(), "Fetch full episode successfully",
                 episodeAggregateService.getFull(id));
@@ -127,7 +127,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "201", description = "Episode and all child records created atomically"),
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token")
     })
-    @PostMapping("/episodes/full")
+    @PostMapping({"/admissions/full", "/episodes/full"})
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseData<AdmissionFullResponseDTO> createEpisodeFull(
             @Valid @RequestBody AdmissionFullRequestDTO request) {
@@ -143,7 +143,7 @@ public class AdmissionController {
             @ApiResponse(responseCode = "401", description = "Unauthorized — missing or invalid access token"),
             @ApiResponse(responseCode = "404", description = "Episode not found")
     })
-    @PutMapping("/episodes/{id}/full")
+    @PutMapping({"/admissions/{id}/full", "/episodes/{id}/full"})
     public ResponseData<Void> updateEpisodeFull(
             @PathVariable Long id, @Valid @RequestBody AdmissionFullRequestDTO request) {
         Long userId = SecurityUtils.getCurrentUserId();
