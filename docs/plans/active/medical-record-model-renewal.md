@@ -735,6 +735,28 @@ consumer still works — every tier 1 and tier 2 key is renamed on purpose, so
 `Frontend_Client` and `Rag_Agentic` are expected to break until they land in the
 same change.
 
+### Phase 3b frontend cost (measured 2026-10-16)
+
+Method: copy `Frontend_Client/src` to a scratch, junction `node_modules` to avoid
+copying it, rename **only** the contract fields in `types/backend.d.ts`, then run
+`tsc --noEmit`. The result is the compiler-derived size of the required change.
+
+- **The frontend has no working typecheck.** `tsconfig.json` sets
+  `ignoreDeprecations: "6.0"`, which TypeScript 5.8 rejects with `TS5103`, so
+  `tsc` does not start at all. Correcting that value to `"5.0"` is a prerequisite
+  for the frontend change to be verifiable, and it belongs in the same change.
+- Baseline with the corrected config: **9 pre-existing errors** in 4 files —
+  `NotificationBell` (4), `PatientModal` (3), `AntibiogramAiVersionTab` (1, where
+  `carePlanJson` is missing from the pharmacist decision type — the same gap the
+  earlier audit found), and one more.
+- After renaming the contract fields: **34 errors, so 25 new, across 15 files**.
+  They concentrate in `MedicalExamDetail.tsx` (10), `doctorDiagnosisModel.ts` (2),
+  `useTreatmentPlanData.ts` (2) and `LayoutClient.tsx` (1).
+- Those 25 are a **lower bound**. Any value that reaches a consumer through an
+  `any`-typed path still compiles and breaks at runtime instead. The raw token
+  count in the frontend is over 560 across 35 files, most of it internal naming
+  the type system never connects to the contract.
+
 
 ## Result
 
