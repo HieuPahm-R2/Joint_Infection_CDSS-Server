@@ -239,6 +239,9 @@ Why phase 2 is contract-neutral, verified rather than assumed:
       an invariant test. Committed as `e1bf52d`.
 - [ ] Phase 3b: the JSON body keys. Blocked on a frontend-first move, because
       key renames cannot be made additive the way routes can.
+      Rehearsed 2026-10-16 and proven **not** to be a mechanical rename: four
+      collision classes plus a silent `Rag_Agentic` break. Needs a curated
+      mapping per DTO, and coordination across all three repositories.
 - [ ] Phase 3c: retire `/episodes` once the frontend has migrated, and migrate
       the `permissions` rows for non-`ADMIN` roles in the same change.
 - [ ] Phase 4: schema rename with compatibility views.
@@ -503,6 +506,62 @@ Two gates stand before this is executed for real:
 2. **Ordering and live version.** This plan sequences phase 3 before phase 4, and
    `pji_dev` sits at v35 while the repository is at v36, so applying V36 and V37
    there is still pending.
+
+### Phase 3b rehearsal (2026-10-16) — a rule-based rename provably fails
+
+Attempted on a scratch copy: rename the Java identifiers that carry the JSON
+contract, about **1170 occurrences** (`episodeId` 527, `episode` 455, `Episode`
+64, `sensitivities` 32, `labResult` 29, `cultureId` 21, and the rest).
+
+Four collision classes appeared, and every one of them was found only by
+compiling and loading the context, never by reading the rule list:
+
+1. **Schema and wire-key literals.** The bare-word `episode` rule rewrote
+   `@Table(name = "pji_episodes")`, `"episode_care_team"`,
+   `uq_pending_episode_field` and the AI chat key `"episode_summary"`. All four
+   belong to phase 4 or to the `Rag_Agentic` contract. Symptom:
+   `Schema-validation: missing table [pji_admissions]`, then
+   `[admission_care_team]`.
+2. **Capitalised accessors.** Rules written for fields (`clinicalRecord`,
+   `labResult`, `cultureId`) missed `getClinicalRecord()`, `getLabResult()`,
+   `setCultureId()` and friends: 24 compile errors, all `cannot find symbol`.
+3. **Wire values that merely share the English word.**
+   `PjiDiagnosticEvaluationRequestDTO.cultureResult` is a category value
+   (`negative` / `singlePositive` / `multipleDifferentOrganisms`), not the entity
+   vocabulary. Renaming it changes the manual-calculator contract and buys
+   nothing.
+4. **Field versus derived-query mismatch.** `cultureId` → `specimenCultureId`
+   renamed the query method `findByCultureId` but not the entity field `culture`
+   it traverses, giving
+   `No property 'specimenCultureId' found for type 'AntibioticSusceptibility'`.
+
+Conclusion: phase 3b must be a **curated mapping per DTO**, not a rule set. Rules
+cannot distinguish "this word is the entity vocabulary" from "this word is a wire
+value, a table name, or a category".
+
+Cross-repository exposure measured in the same rehearsal:
+
+| Contract | Field | `@JsonProperty` | Effect of renaming the field |
+| --- | --- | --- | --- |
+| `AiRecommendationGenerateRequestDTO` (HTTP to `Rag_Agentic`) | `episodeId` | `episode_id` | Wire key unchanged, so a new Java-versus-wire mismatch appears |
+| `AiChatRequestDTO` | `episodeSummary` | `episode_summary` | Would break the chat contract |
+| `RabbitMQRecommendationMessage` (queue to the worker) | `episodeId` | none | Wire key becomes `admissionId`; `rabbitmq_worker.py:228` reads `body.get("episodeId")` and would receive **`None` silently** |
+
+So the coordination set for phase 3b is backend **plus frontend plus
+`Rag_Agentic`**, and one of the three degrades silently rather than failing
+loudly.
+
+Tooling defect found and fixed during the rehearsal: PowerShell hashtables
+compare keys case-insensitively. Sharing one mask map across all files collapsed
+`"clinical_records"` and `"CLINICAL_RECORDS"` onto a single placeholder and
+restored the first-seen casing everywhere, silently rewriting the
+manual-calculator adapter's lowercase keys into the initializer's uppercase module
+labels; the same defect merged the `Episode` and `episode` rule counters, which is
+why their counts looked identical. The script now uses
+`System.Collections.Generic.Dictionary[string,string]`.
+
+Status: the rehearsal does **not** reach green. The next step is a curated
+mapping, not another rule iteration.
 
 
 ## Result
