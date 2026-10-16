@@ -759,6 +759,39 @@ copying it, rename **only** the contract fields in `types/backend.d.ts`, then ru
   count in the frontend is over 560 across 35 files, most of it internal naming
   the type system never connects to the contract.
 
+### Phase 3c permission migration (prepared and rehearsed 2026-10-16)
+
+Retiring `/episodes` cannot simply delete the legacy permission rows.
+`PermissionSyncer` inserts the `/admissions` rows and auto-grants them to ADMIN,
+but it never removes the legacy rows and never moves another role's curated
+grants — and `role_permissions` references permission ids, so delete-and-reseed
+would drop every non-ADMIN grant.
+
+`V38__retire_episode_permissions.sql` is therefore id-preserving: twin the missing
+row, copy the grants across, then remove the legacy row. Every statement is
+guarded by `NOT EXISTS`, because `permissions` has no unique constraint on
+`(api_path, method)` — the missing invariant the database assessment recorded,
+which also means `ON CONFLICT` is unavailable.
+
+Rehearsed against a database seeded by running the application once at HEAD, so
+that the phase 3a alias produced both route families, with a real non-ADMIN role
+holding curated grants on the legacy rows:
+
+| | Before | After | Second run |
+| --- | --- | --- | --- |
+| permission rows | 159 | 123 | 123 |
+| PHARMACIST grants | 40 | **40** | 40 |
+| … on `/episodes` | 36 | 0 | 0 |
+| … on `/admissions` | 0 | 36 | 36 |
+| ADMIN grants | 159 | 123 | 123 |
+| orphan grants | — | 0 | 0 |
+| duplicate `(role, permission)` pairs | — | 0 | 0 |
+
+The migration is idempotent: a second application changes nothing.
+
+Held outside the repository, because it has to land after `Frontend_Client` stops
+calling `/episodes` — that is, after phase 3b.
+
 
 ## Result
 
