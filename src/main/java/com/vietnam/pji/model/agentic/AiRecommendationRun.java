@@ -5,7 +5,7 @@ import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.TriggerType;
 import com.vietnam.pji.model.AbstractEntity;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,12 +26,12 @@ public class AiRecommendationRun extends AbstractEntity<Long> {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "episode_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private PjiEpisode episode;
+    private Admission episode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "snapshot_id")
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private CaseClinicalSnapshot snapshot;
+    private ClinicalSnapshot snapshot;
 
     @Column(name = "run_no")
     private Integer runNo;

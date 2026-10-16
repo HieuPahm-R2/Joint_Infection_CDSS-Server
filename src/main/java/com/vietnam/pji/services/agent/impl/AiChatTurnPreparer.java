@@ -21,7 +21,7 @@ import com.vietnam.pji.repository.ai.AiChatMessageRepository;
 import com.vietnam.pji.repository.ai.AiChatSessionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +38,7 @@ class AiChatTurnPreparer {
     private final AiChatSessionRepository sessionRepository;
     private final AiChatMessageRepository messageRepository;
     private final AiRecommendationItemRepository itemRepository;
-    private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
+    private final AdmissionSnapshotAssemblerService snapshotAssemblerService;
     private final RecommendationAccessService recommendationAccessService;
 
     @Transactional(readOnly = true)

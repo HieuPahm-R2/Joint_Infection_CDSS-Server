@@ -18,9 +18,9 @@ import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.constant.TriggerType;
 import com.vietnam.pji.dto.response.AiRecommendationRunDetailDTO;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
-import com.vietnam.pji.model.agentic.CaseClinicalSnapshot;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.agentic.ClinicalSnapshot;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRagCitationRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
@@ -28,17 +28,17 @@ import com.vietnam.pji.repository.ai.RuleBasedDiagnosticResultRepository;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.mapper.AiRecommendationRunMapper;
 
 class AiRecommendationServiceImplTest {
 
-    private final EpisodeRepository episodeRepository = mock(EpisodeRepository.class);
+    private final AdmissionRepository episodeRepository = mock(AdmissionRepository.class);
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final AiRecommendationItemRepository itemRepository = mock(AiRecommendationItemRepository.class);
     private final AiRagCitationRepository citationRepository = mock(AiRagCitationRepository.class);
-    private final EpisodeSnapshotAssemblerService snapshotAssembler = mock(EpisodeSnapshotAssemblerService.class);
+    private final AdmissionSnapshotAssemblerService snapshotAssembler = mock(AdmissionSnapshotAssemblerService.class);
     private final AiServiceClient aiServiceClient = mock(AiServiceClient.class);
     private final PjiDiagnosticRuleEngine ruleEngine = mock(PjiDiagnosticRuleEngine.class);
     private final ObjectMapper objectMapper = mock(ObjectMapper.class);
@@ -63,13 +63,13 @@ class AiRecommendationServiceImplTest {
     @Test
     void asyncGenerationPersistsTheOutboxJobWithoutPublishingInline() {
         AiRecommendationRun run = AiRecommendationRun.builder()
-                .episode(PjiEpisode.builder().build())
-                .snapshot(CaseClinicalSnapshot.builder().build())
+                .episode(Admission.builder().build())
+                .snapshot(ClinicalSnapshot.builder().build())
                 .requestId("request-1")
                 .status(RunStatus.PROCESSING)
                 .build();
         run.setId(12L);
-        var snapshot = EpisodeSnapshotAssemblerService.SnapshotBuildResult.builder()
+        var snapshot = AdmissionSnapshotAssemblerService.SnapshotBuildResult.builder()
                 .snapshotDataJson(Map.of("patient", "P-1"))
                 .completenessScore(BigDecimal.TEN)
                 .build();
@@ -91,7 +91,7 @@ class AiRecommendationServiceImplTest {
 
     @Test
     void retryCreatesANewRunThroughTheAsyncOutboxPath() {
-        PjiEpisode episode = PjiEpisode.builder().build();
+        Admission episode = Admission.builder().build();
         episode.setId(7L);
         AiRecommendationRun failedRun = AiRecommendationRun.builder()
                 .episode(episode)
@@ -102,12 +102,12 @@ class AiRecommendationServiceImplTest {
         failedRun.setId(11L);
         AiRecommendationRun retryRun = AiRecommendationRun.builder()
                 .episode(episode)
-                .snapshot(CaseClinicalSnapshot.builder().build())
+                .snapshot(ClinicalSnapshot.builder().build())
                 .requestId("request-2")
                 .status(RunStatus.PROCESSING)
                 .build();
         retryRun.setId(12L);
-        var snapshot = EpisodeSnapshotAssemblerService.SnapshotBuildResult.builder()
+        var snapshot = AdmissionSnapshotAssemblerService.SnapshotBuildResult.builder()
                 .snapshotDataJson(Map.of("patient", "P-1"))
                 .completenessScore(BigDecimal.TEN)
                 .build();

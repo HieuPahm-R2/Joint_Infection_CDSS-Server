@@ -4,10 +4,10 @@ import com.vietnam.pji.dto.request.MedicalHistoryRequestDTO;
 import com.vietnam.pji.exception.InvalidDataException;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.medical.MedicalHistory;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.MedicalHistoryRepository;
-import com.vietnam.pji.services.episode.EpisodeGraphLoader;
+import com.vietnam.pji.services.episode.AdmissionGraphLoader;
 import com.vietnam.pji.services.medical.MedicalHistoryService;
 import com.vietnam.pji.utils.mapper.MedicalHistoryMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class MedicalHistoryServiceImpl implements MedicalHistoryService {
 
     private final MedicalHistoryRepository medicalHistoryRepository;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final MedicalHistoryMapper medicalHistoryMapper;
-    private final EpisodeGraphLoader episodeGraph;
+    private final AdmissionGraphLoader episodeGraph;
 
     @Override
     @Transactional
@@ -29,7 +29,7 @@ public class MedicalHistoryServiceImpl implements MedicalHistoryService {
         if (medicalHistoryRepository.existsByEpisodeId(episodeId)) {
             throw new InvalidDataException("Medical history already exists for this episode.");
         }
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
 
         MedicalHistory history = medicalHistoryMapper.toEntity(data);

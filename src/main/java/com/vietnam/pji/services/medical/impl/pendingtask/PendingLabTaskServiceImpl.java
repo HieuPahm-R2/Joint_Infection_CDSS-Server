@@ -3,20 +3,20 @@ package com.vietnam.pji.services.medical.impl.pendingtask;
 import com.vietnam.pji.constant.PendingLabTaskStatus;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.agentic.PendingLabTask;
-import com.vietnam.pji.model.medical.ClinicalRecord;
-import com.vietnam.pji.model.medical.CultureResult;
-import com.vietnam.pji.model.medical.LabResult;
+import com.vietnam.pji.model.medical.ClinicalAssessment;
+import com.vietnam.pji.model.medical.SpecimenCulture;
+import com.vietnam.pji.model.medical.LabReport;
 import com.vietnam.pji.model.medical.MedicalHistory;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.model.medical.Surgery;
-import com.vietnam.pji.repository.EpisodeRepository;
-import com.vietnam.pji.repository.LabResultRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
+import com.vietnam.pji.repository.LabReportRepository;
 import com.vietnam.pji.repository.MedicalHistoryRepository;
 import com.vietnam.pji.repository.PendingLabTaskRepository;
 import com.vietnam.pji.repository.SurgeryRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
-import com.vietnam.pji.repository.medical.ClinicalRecordRepository;
-import com.vietnam.pji.repository.medical.CultureResultRepository;
+import com.vietnam.pji.repository.medical.ClinicalAssessmentRepository;
+import com.vietnam.pji.repository.medical.SpecimenCultureRepository;
 import com.vietnam.pji.services.medical.PendingLabTaskService;
 
 import lombok.RequiredArgsConstructor;
@@ -48,12 +48,12 @@ import java.util.Set;
 public class PendingLabTaskServiceImpl implements PendingLabTaskService {
 
     private final PendingLabTaskRepository pendingLabTaskRepository;
-    private final LabResultRepository labResultRepository;
-    private final EpisodeRepository episodeRepository;
+    private final LabReportRepository labResultRepository;
+    private final AdmissionRepository episodeRepository;
     private final AiRecommendationRunRepository aiRecommendationRunRepository;
-    private final ClinicalRecordRepository clinicalRecordRepository;
+    private final ClinicalAssessmentRepository clinicalRecordRepository;
     private final MedicalHistoryRepository medicalHistoryRepository;
-    private final CultureResultRepository cultureResultRepository;
+    private final SpecimenCultureRepository cultureResultRepository;
     private final SurgeryRepository surgeryRepository;
     private final LabFieldCatalog catalog;
     private final LabFieldFulfillmentDetector fulfillmentDetector;
@@ -101,7 +101,7 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
 
         Long episodeId = task.getEpisode().getId();
         String field = task.getField();
-        LabResult saved = labWriter.writeValue(episodeId, field, value, unit);
+        LabReport saved = labWriter.writeValue(episodeId, field, value, unit);
 
         // Mark task as fulfilled (drops any stale FULFILLED row for the field)
         markFulfilled(task, saved);
@@ -117,7 +117,7 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
             return;
         }
 
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
 
         for (Map<String, Object> item : missingItems) {
@@ -180,7 +180,7 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
         Set<String> presentTokens = fulfillmentDetector
                 .extractPresentFields(hematologyTests, fluidAnalysis, biochemicalData);
 
-        LabResult labResult = labResultRepository.findById(labResultId).orElse(null);
+        LabReport labResult = labResultRepository.findById(labResultId).orElse(null);
 
         for (PendingLabTask task : pendingTasks) {
             if (fulfillmentDetector.isLabFieldPresent(task.getField(), presentTokens)) {
@@ -200,14 +200,14 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
         }
 
         // Only load what the clinical/culture checks below actually need.
-        ClinicalRecord clinicalRecord = needsField(pendingTasks,
+        ClinicalAssessment clinicalRecord = needsField(pendingTasks,
                 "sinus_tract", "infection_type", "implant_stability")
                         ? clinicalRecordRepository.findFirstByEpisodeIdOrderByCreatedAtDesc(episodeId).orElse(null)
                         : null;
         MedicalHistory medicalHistory = needsField(pendingTasks, "allergies")
                 ? medicalHistoryRepository.findByEpisodeId(episodeId).orElse(null)
                 : null;
-        List<CultureResult> cultures = needsField(pendingTasks, "culture_results")
+        List<SpecimenCulture> cultures = needsField(pendingTasks, "culture_results")
                 ? cultureResultRepository.findByEpisodeIdOrderByCreatedAtDesc(episodeId)
                 : List.of();
         List<Surgery> surgeries = needsField(pendingTasks, "positive_histology")
@@ -295,7 +295,7 @@ public class PendingLabTaskServiceImpl implements PendingLabTaskService {
      * field. We delete-then-flush before the UPDATE because Hibernate would
      * otherwise order the UPDATE ahead of the DELETE and still collide.
      */
-    private void markFulfilled(PendingLabTask task, LabResult labResult) {
+    private void markFulfilled(PendingLabTask task, LabReport labResult) {
         Long episodeId = task.getEpisode().getId();
         pendingLabTaskRepository
                 .findByEpisodeIdAndFieldAndStatus(episodeId, task.getField(),

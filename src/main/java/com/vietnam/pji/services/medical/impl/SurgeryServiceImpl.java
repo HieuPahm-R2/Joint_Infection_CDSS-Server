@@ -3,11 +3,11 @@ package com.vietnam.pji.services.medical.impl;
 import com.vietnam.pji.dto.request.SurgeryRequestDTO;
 import com.vietnam.pji.dto.response.PaginationResultDTO;
 import com.vietnam.pji.exception.ResourceNotFoundException;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.model.medical.Surgery;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.SurgeryRepository;
-import com.vietnam.pji.services.episode.EpisodeGraphLoader;
+import com.vietnam.pji.services.episode.AdmissionGraphLoader;
 import com.vietnam.pji.services.medical.SurgeryService;
 import com.vietnam.pji.utils.mapper.SurgeryMapper;
 import lombok.RequiredArgsConstructor;
@@ -21,14 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class SurgeryServiceImpl implements SurgeryService {
 
     private final SurgeryRepository surgeryRepository;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final SurgeryMapper surgeryMapper;
-    private final EpisodeGraphLoader episodeGraph;
+    private final AdmissionGraphLoader episodeGraph;
 
     @Override
     @Transactional
     public Surgery create(SurgeryRequestDTO data) {
-        PjiEpisode episode = episodeRepository.findById(data.getEpisodeId())
+        Admission episode = episodeRepository.findById(data.getEpisodeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
         Surgery surgery = surgeryMapper.toEntity(data);
         surgery.setEpisode(episode);

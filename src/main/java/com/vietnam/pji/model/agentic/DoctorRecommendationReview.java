@@ -3,7 +3,7 @@ package com.vietnam.pji.model.agentic;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.vietnam.pji.constant.ReviewStatus;
 import com.vietnam.pji.model.AbstractEntity;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -23,7 +23,7 @@ public class DoctorRecommendationReview extends AbstractEntity<Long> {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "episode_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private PjiEpisode episode;
+    private Admission episode;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "run_id", nullable = false, unique = true)

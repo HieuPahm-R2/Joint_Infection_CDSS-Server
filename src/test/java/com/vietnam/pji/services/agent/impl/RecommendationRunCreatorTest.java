@@ -20,21 +20,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.TriggerType;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
-import com.vietnam.pji.model.agentic.CaseClinicalSnapshot;
+import com.vietnam.pji.model.agentic.ClinicalSnapshot;
 import com.vietnam.pji.model.agentic.RecommendationJobOutbox;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.CaseClinicalSnapshotRepository;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.ClinicalSnapshotRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.repository.ai.RecommendationJobOutboxRepository;
 import com.vietnam.pji.repository.ai.RuleBasedDiagnosticResultRepository;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService.SnapshotBuildResult;
 
 class RecommendationRunCreatorTest {
 
-    private final EpisodeRepository episodeRepository = mock(EpisodeRepository.class);
-    private final CaseClinicalSnapshotRepository snapshotRepository = mock(CaseClinicalSnapshotRepository.class);
+    private final AdmissionRepository episodeRepository = mock(AdmissionRepository.class);
+    private final ClinicalSnapshotRepository snapshotRepository = mock(ClinicalSnapshotRepository.class);
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final RuleBasedDiagnosticResultRepository diagnosticRepository = mock(RuleBasedDiagnosticResultRepository.class);
     private final RecommendationJobOutboxRepository outboxRepository = mock(RecommendationJobOutboxRepository.class);
@@ -49,13 +49,13 @@ class RecommendationRunCreatorTest {
 
     @Test
     void locksEpisodeBeforeAssigningScopedSequenceNumbers() throws Exception {
-        PjiEpisode episode = PjiEpisode.builder().build();
+        Admission episode = Admission.builder().build();
         episode.setId(7L);
         when(episodeRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(episode));
         when(snapshotRepository.findMaxSnapshotNoByEpisodeId(7L)).thenReturn(3);
         when(runRepository.findMaxRunNoByEpisodeId(7L)).thenReturn(8);
-        when(snapshotRepository.save(any(CaseClinicalSnapshot.class))).thenAnswer(invocation -> {
-            CaseClinicalSnapshot snapshot = invocation.getArgument(0);
+        when(snapshotRepository.save(any(ClinicalSnapshot.class))).thenAnswer(invocation -> {
+            ClinicalSnapshot snapshot = invocation.getArgument(0);
             snapshot.setId(101L);
             return snapshot;
         });
@@ -93,13 +93,13 @@ class RecommendationRunCreatorTest {
 
     @Test
     void storesAsyncJobPayloadWithTheRun() throws Exception {
-        PjiEpisode episode = PjiEpisode.builder().build();
+        Admission episode = Admission.builder().build();
         episode.setId(7L);
         when(episodeRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(episode));
         when(snapshotRepository.findMaxSnapshotNoByEpisodeId(7L)).thenReturn(0);
         when(runRepository.findMaxRunNoByEpisodeId(7L)).thenReturn(0);
-        when(snapshotRepository.save(any(CaseClinicalSnapshot.class))).thenAnswer(invocation -> {
-            CaseClinicalSnapshot snapshot = invocation.getArgument(0);
+        when(snapshotRepository.save(any(ClinicalSnapshot.class))).thenAnswer(invocation -> {
+            ClinicalSnapshot snapshot = invocation.getArgument(0);
             snapshot.setId(101L);
             return snapshot;
         });

@@ -32,7 +32,7 @@ public class AiChatServiceImpl implements AiChatService {
 
     private final AiChatSessionRepository sessionRepository;
     private final AiChatMessageRepository messageRepository;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final AiRecommendationRunRepository runRepository;
     private final AiRecommendationItemRepository itemRepository;
     private final AiServiceClient aiServiceClient;

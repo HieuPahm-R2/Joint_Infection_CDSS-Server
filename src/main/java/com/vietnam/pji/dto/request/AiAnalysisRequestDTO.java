@@ -23,15 +23,15 @@ public class AiAnalysisRequestDTO implements Serializable {
     private String requestedBy;        // email of the doctor who triggered the analysis
 
     private MedicalHistory medicalHistory;
-    private List<ClinicalRecord> clinicalRecords;
+    private List<ClinicalAssessment> clinicalRecords;
     private List<Surgery> surgeries;
-    private List<LabResult> labResults;
-    private List<ImageResult> imageResults;
+    private List<LabReport> labResults;
+    private List<ImagingStudy> imageResults;
 
     /**
-     * Each CultureResult may have its own list of SensitivityResults,
+     * Each SpecimenCulture may have its own list of SensitivityResults,
      * provided separately for easier flat lookup by the AI team.
      */
-    private List<CultureResult> cultureResults;
-    private List<SensitivityResult> sensitivityResults;
+    private List<SpecimenCulture> cultureResults;
+    private List<AntibioticSusceptibility> sensitivityResults;
 }

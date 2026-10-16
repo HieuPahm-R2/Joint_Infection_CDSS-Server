@@ -15,7 +15,7 @@ import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.antibiotic.impl.AntibioticCarePlanServiceImpl;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,7 +37,7 @@ class AntibioticCarePlanServiceImplTest {
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final PharmacistFinalDecisionRepository decisionRepository = mock(PharmacistFinalDecisionRepository.class);
     private final RecommendationFinalSelectionRepository finalSelectionRepository = mock(RecommendationFinalSelectionRepository.class);
-    private final EpisodeSnapshotAssemblerService snapshotService = mock(EpisodeSnapshotAssemblerService.class);
+    private final AdmissionSnapshotAssemblerService snapshotService = mock(AdmissionSnapshotAssemblerService.class);
     private final AiServiceClient aiServiceClient = mock(AiServiceClient.class);
 
     private AntibioticCarePlanServiceImpl service;
@@ -65,7 +65,7 @@ class AntibioticCarePlanServiceImplTest {
         when(decisionRepository.findByRunIdIn(List.of(8L, 7L)))
                 .thenReturn(List.of(draft, signed));
         when(snapshotService.buildSnapshot(91L)).thenReturn(
-                EpisodeSnapshotAssemblerService.SnapshotBuildResult.builder()
+                AdmissionSnapshotAssemblerService.SnapshotBuildResult.builder()
                         .snapshotDataJson(Map.of("snapshot_metadata", Map.of("episode_id", 91L)))
                         .build());
         when(aiServiceClient.generateAntibioticCarePlan(any())).thenReturn(

@@ -9,15 +9,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vietnam.pji.exception.ResourceNotFoundException;
-import com.vietnam.pji.model.medical.LabResult;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.EpisodeRepository;
-import com.vietnam.pji.repository.LabResultRepository;
+import com.vietnam.pji.model.medical.LabReport;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.AdmissionRepository;
+import com.vietnam.pji.repository.LabReportRepository;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * Writes a single quick-entry value into the episode's current {@code LabResult}
+ * Writes a single quick-entry value into the episode's current {@code LabReport}
  * row set.
  *
  * <p>
@@ -32,8 +32,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PendingLabTaskLabWriter {
 
-    private final LabResultRepository labResultRepository;
-    private final EpisodeRepository episodeRepository;
+    private final LabReportRepository labResultRepository;
+    private final AdmissionRepository episodeRepository;
     private final LabFieldCatalog catalog;
 
     /**
@@ -43,9 +43,9 @@ public class PendingLabTaskLabWriter {
      * @return the persisted lab result that now carries the value
      */
     @Transactional
-    public LabResult writeValue(Long episodeId, String field, Object value, String unit) {
+    public LabReport writeValue(Long episodeId, String field, Object value, String unit) {
         LabFieldCatalog.LabFieldSpec spec = catalog.specFor(field);
-        LabResult labResult = getOrCreateLatestLabResult(episodeId);
+        LabReport labResult = getOrCreateLatestLabResult(episodeId);
 
         switch (spec.section()) {
             case "hematology" -> {
@@ -108,15 +108,15 @@ public class PendingLabTaskLabWriter {
                 || (name != null && name.equals(test.get("name"))));
     }
 
-    private LabResult getOrCreateLatestLabResult(Long episodeId) {
+    private LabReport getOrCreateLatestLabResult(Long episodeId) {
         var latest = labResultRepository.findFirstByEpisodeIdOrderByCreatedAtDesc(episodeId);
         if (latest.isPresent()) {
             return latest.get();
         }
 
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
-        LabResult newLabResult = LabResult.builder()
+        LabReport newLabResult = LabReport.builder()
                 .episode(episode)
                 .hematologyTests(new ArrayList<>())
                 .fluidAnalysis(new ArrayList<>())

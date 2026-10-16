@@ -14,7 +14,7 @@ import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.antibiotic.AntibioticCarePlanService;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +33,7 @@ public class AntibioticCarePlanServiceImpl implements AntibioticCarePlanService 
     private final AiRecommendationRunRepository runRepository;
     private final PharmacistFinalDecisionRepository pharmacistDecisionRepository;
     private final RecommendationFinalSelectionRepository finalSelectionRepository;
-    private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
+    private final AdmissionSnapshotAssemblerService snapshotAssemblerService;
     private final AiServiceClient aiServiceClient;
 
     @Override
@@ -41,7 +41,7 @@ public class AntibioticCarePlanServiceImpl implements AntibioticCarePlanService 
     public AntibioticCarePlanResponseDTO generate(Long episodeId) {
         recommendationAccessService.assertCanReviewEpisode(episodeId);
         SourceDecision source = findLatestSignedDecision(episodeId);
-        EpisodeSnapshotAssemblerService.SnapshotBuildResult snapshot =
+        AdmissionSnapshotAssemblerService.SnapshotBuildResult snapshot =
                 snapshotAssemblerService.buildSnapshot(episodeId);
 
         String requestId = "care-plan-" + episodeId + "-" + UUID.randomUUID();

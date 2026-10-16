@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vietnam.pji.model.AbstractEntity;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.model.auth.User;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,7 +22,7 @@ public class RecommendationFinalSelection extends AbstractEntity<Long> {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "episode_id", nullable = false)
     @JsonIgnore
-    private PjiEpisode episode;
+    private Admission episode;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "run_id", nullable = false, unique = true)

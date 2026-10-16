@@ -11,17 +11,17 @@ import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.DoctorRecommendationReview;
 import com.vietnam.pji.model.agentic.DoctorFinalDecision;
 import com.vietnam.pji.model.auth.User;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
 import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.ActivePrincipal;
 import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.doctor.DoctorRecommendationReviewService;
 import com.vietnam.pji.services.clinicaldecision.ClinicalDecisionService;
-import com.vietnam.pji.services.episode.EpisodeRecordAccess;
+import com.vietnam.pji.services.episode.AdmissionRecordAccess;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
@@ -40,17 +40,17 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
     private final DoctorRecommendationReviewRepository reviewRepository;
     private final DoctorFinalDecisionRepository doctorFinalDecisionRepository;
     private final AiRecommendationRunRepository runRepository;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final UserService userService;
     private final ClinicalDecisionService clinicalDecisionService;
     private final CurrentActorProvider actorProvider;
-    private final EpisodeRecordAccess recordAccess;
+    private final AdmissionRecordAccess recordAccess;
 
     @Override
     @Transactional
     public DoctorRecommendationReview createOrUpdateReview(Long episodeId,
             DoctorRecommendationReviewRequestDTO request) {
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found with id: " + episodeId));
 
         AiRecommendationRun run = runRepository.findById(request.getRunId())
@@ -147,7 +147,7 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
         return merged.isEmpty() ? null : merged;
     }
 
-    private void validateReviewAccess(PjiEpisode episode, AiRecommendationRun run) {
+    private void validateReviewAccess(Admission episode, AiRecommendationRun run) {
         if (run.getEpisode() == null || !episode.getId().equals(run.getEpisode().getId())) {
             throw new ForbiddenException("AI recommendation run does not belong to this episode");
         }

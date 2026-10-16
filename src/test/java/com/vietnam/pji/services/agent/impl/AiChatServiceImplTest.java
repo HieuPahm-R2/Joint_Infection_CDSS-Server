@@ -15,7 +15,7 @@ import com.vietnam.pji.dto.request.AiChatRequestDTO;
 import com.vietnam.pji.dto.request.SendChatMessageRequestDTO;
 import com.vietnam.pji.dto.response.AiChatResponseDTO;
 import com.vietnam.pji.model.agentic.AiChatMessage;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiChatMessageRepository;
 import com.vietnam.pji.repository.ai.AiChatSessionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationItemRepository;
@@ -27,7 +27,7 @@ class AiChatServiceImplTest {
 
     private final AiChatSessionRepository sessionRepository = mock(AiChatSessionRepository.class);
     private final AiChatMessageRepository messageRepository = mock(AiChatMessageRepository.class);
-    private final EpisodeRepository episodeRepository = mock(EpisodeRepository.class);
+    private final AdmissionRepository episodeRepository = mock(AdmissionRepository.class);
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final AiRecommendationItemRepository itemRepository = mock(AiRecommendationItemRepository.class);
     private final AiServiceClient aiServiceClient = mock(AiServiceClient.class);

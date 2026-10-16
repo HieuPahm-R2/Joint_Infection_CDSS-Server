@@ -20,7 +20,7 @@ public class MedicalHistory extends AbstractEntity<Long> implements Serializable
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "episode_id")
-    private PjiEpisode episode;
+    private Admission episode;
 
     @Column(name = "medical_history", columnDefinition = "TEXT")
     private String medicalHistory;

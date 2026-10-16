@@ -23,13 +23,13 @@ import com.vietnam.pji.exception.InvalidDataException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.auth.Role;
 import com.vietnam.pji.model.auth.User;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.ActivePrincipal;
 import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.services.auth.UserService;
-import com.vietnam.pji.services.episode.EpisodeRecordAccess;
+import com.vietnam.pji.services.episode.AdmissionRecordAccess;
 import com.vietnam.pji.utils.SecurityUtils;
 
 /**
@@ -44,10 +44,10 @@ import com.vietnam.pji.utils.SecurityUtils;
  */
 class RecommendationAccessServiceTest {
 
-    private final EpisodeRepository episodeRepository = mock(EpisodeRepository.class);
+    private final AdmissionRepository episodeRepository = mock(AdmissionRepository.class);
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final UserService userService = mock(UserService.class);
-    private final EpisodeRecordAccess recordAccess = mock(EpisodeRecordAccess.class);
+    private final AdmissionRecordAccess recordAccess = mock(AdmissionRecordAccess.class);
 
     private final RecommendationAccessService service = new RecommendationAccessService(
             episodeRepository,
@@ -57,7 +57,7 @@ class RecommendationAccessServiceTest {
 
     @Test
     void pharmacistGeneratingAntibioticRunStillHasToReachTheRecord() {
-        PjiEpisode episode = episode(9L, "doctor@example.test");
+        Admission episode = episode(9L, "doctor@example.test");
         when(episodeRepository.findById(9L)).thenReturn(Optional.of(episode));
         // The record check is what used to be skipped for this lane.
         doThrow(new ForbiddenException("not on the care team"))
@@ -72,7 +72,7 @@ class RecommendationAccessServiceTest {
 
     @Test
     void pharmacistGeneratingForAnEpisodeTheyBelongToIsAllowed() {
-        PjiEpisode episode = episode(9L, "doctor@example.test");
+        Admission episode = episode(9L, "doctor@example.test");
         when(episodeRepository.findById(9L)).thenReturn(Optional.of(episode));
 
         as("pharmacist@example.test", "PHARMACIST", user -> {
@@ -84,7 +84,7 @@ class RecommendationAccessServiceTest {
 
     @Test
     void pharmacistCannotGenerateASurgeryRun() {
-        PjiEpisode episode = episode(9L, "doctor@example.test");
+        Admission episode = episode(9L, "doctor@example.test");
         when(episodeRepository.findById(9L)).thenReturn(Optional.of(episode));
 
         as("pharmacist@example.test", "PHARMACIST", user -> {
@@ -195,15 +195,15 @@ class RecommendationAccessServiceTest {
         return user;
     }
 
-    private PjiEpisode episode(Long id, String owner) {
-        PjiEpisode episode = PjiEpisode.builder().build();
+    private Admission episode(Long id, String owner) {
+        Admission episode = Admission.builder().build();
         episode.setId(id);
         episode.setCreatedBy(owner);
         return episode;
     }
 
     private AiRecommendationRun run(String owner) {
-        PjiEpisode episode = episode(9L, owner);
+        Admission episode = episode(9L, owner);
         AiRecommendationRun run = AiRecommendationRun.builder().episode(episode).build();
         run.setId(7L);
         run.setCreatedBy(owner);

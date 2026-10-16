@@ -33,10 +33,10 @@ import com.vietnam.pji.exception.BusinessException;
 import com.vietnam.pji.exception.UploadSessionGoneException;
 import com.vietnam.pji.exception.UploadSessionUnauthorizedException;
 import com.vietnam.pji.message.UploadSessionEventPublisher;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.model.upload.UploadSession;
 import com.vietnam.pji.model.upload.UploadSessionFile;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.upload.UploadSessionRepository;
 import com.vietnam.pji.repository.upload.UploadSessionRepository.MutationResult;
 import com.vietnam.pji.services.medical.PatientService;
@@ -59,7 +59,7 @@ public class UploadSessionService {
     private final UploadSessionRepository uploadSessionRepository;
     private final UploadSessionProperties properties;
     private final PatientService patientService;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final MinioChannel minioChannel;
     private final UploadSessionEventPublisher eventPublisher;
     private final ExtractImagesService extractImagesService;
@@ -265,7 +265,7 @@ public class UploadSessionService {
 
     private void validatePatientAndEpisode(Long patientId, Long episodeId) {
         patientService.getById(patientId);
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new BusinessException("Episode not found"));
         if (episode.getPatient() == null || !patientId.equals(episode.getPatient().getId())) {
             throw new BusinessException("Episode does not belong to the selected patient");

@@ -18,8 +18,8 @@ import com.vietnam.pji.services.agent.AiRecommendationService;
 import com.vietnam.pji.services.agent.AiServiceClient;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService.SnapshotBuildResult;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -38,11 +38,11 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
 
     private static final long RUN_DETAIL_CACHE_TTL = 1800; // 30 minutes
 
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final AiRecommendationRunRepository runRepository;
     private final AiRecommendationItemRepository itemRepository;
     private final AiRagCitationRepository citationRepository;
-    private final EpisodeSnapshotAssemblerService snapshotAssemblerService;
+    private final AdmissionSnapshotAssemblerService snapshotAssemblerService;
     private final AiServiceClient aiServiceClient;
     private final PjiDiagnosticRuleEngine diagnosticRuleEngine;
     private final ObjectMapper objectMapper;
@@ -67,7 +67,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 triggerType,
                 recommendationScope,
                 SecurityUtils.getCurrentUserId());
-        CaseClinicalSnapshot snapshot = created.snapshot();
+        ClinicalSnapshot snapshot = created.snapshot();
         AiRecommendationRun run = created.run();
 
         String requestId = run.getRequestId();
@@ -115,7 +115,7 @@ public class AiRecommendationServiceImpl implements AiRecommendationService {
                 triggerType,
                 recommendationScope,
                 SecurityUtils.getCurrentUserId());
-        CaseClinicalSnapshot snapshot = created.snapshot();
+        ClinicalSnapshot snapshot = created.snapshot();
         AiRecommendationRun run = created.run();
 
         log.info("Persisted async recommendation job: requestId={}, runId={}, episodeId={}",

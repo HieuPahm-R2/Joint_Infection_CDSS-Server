@@ -23,7 +23,7 @@ import com.vietnam.pji.model.agentic.RecommendationFinalSelection;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
 import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.RecommendationFinalSelectionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
 
     private final AiRecommendationRunRepository runRepository;
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final DoctorRecommendationReviewRepository reviewRepository;
     private final DoctorFinalDecisionRepository doctorDecisionRepository;
     private final PharmacistFinalDecisionRepository pharmacistDecisionRepository;

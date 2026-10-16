@@ -9,12 +9,12 @@ import com.vietnam.pji.exception.ForbiddenException;
 import com.vietnam.pji.exception.InvalidDataException;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.auth.ActivePrincipal;
 import com.vietnam.pji.services.auth.CurrentActorProvider;
-import com.vietnam.pji.services.episode.EpisodeRecordAccess;
+import com.vietnam.pji.services.episode.AdmissionRecordAccess;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,7 +31,7 @@ import lombok.RequiredArgsConstructor;
  * {@link RecommendationScope}: a doctor for a surgery run, a pharmacist for an
  * antibiotic run. Owned by this class.</li>
  * <li><strong>Record relationship</strong> - whether the caller may reach this
- * particular episode at all. Owned by {@link EpisodeRecordAccess}, so it is the
+ * particular episode at all. Owned by {@link AdmissionRecordAccess}, so it is the
  * same decision the clinical-record endpoints make.</li>
  * </ol>
  *
@@ -62,10 +62,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RecommendationAccessService {
 
-    private final EpisodeRepository episodeRepository;
+    private final AdmissionRepository episodeRepository;
     private final AiRecommendationRunRepository runRepository;
     private final CurrentActorProvider actorProvider;
-    private final EpisodeRecordAccess recordAccess;
+    private final AdmissionRecordAccess recordAccess;
 
     /**
      * Requires an active principal in the scope's professional lane with access to
@@ -81,14 +81,14 @@ public class RecommendationAccessService {
         ActivePrincipal principal = actorProvider.require();
         requireLane(principal, scope);
 
-        PjiEpisode episode = requireEpisode(episodeId);
+        Admission episode = requireEpisode(episodeId);
         recordAccess.assertCanAccess(principal, episode, null);
     }
 
     @Transactional(readOnly = true)
     public void assertCanAccessEpisode(Long episodeId) {
         ActivePrincipal principal = actorProvider.require();
-        PjiEpisode episode = requireEpisode(episodeId);
+        Admission episode = requireEpisode(episodeId);
         recordAccess.assertCanAccess(principal, episode, null);
     }
 
@@ -111,7 +111,7 @@ public class RecommendationAccessService {
     @Transactional(readOnly = true)
     public void assertCanReviewEpisode(Long episodeId) {
         ActivePrincipal principal = actorProvider.require();
-        PjiEpisode episode = requireEpisode(episodeId);
+        Admission episode = requireEpisode(episodeId);
         recordAccess.assertCanAccess(principal, episode, null);
     }
 
@@ -139,8 +139,8 @@ public class RecommendationAccessService {
         }
     }
 
-    private PjiEpisode requireEpisode(Long episodeId) {
-        PjiEpisode episode = episodeRepository.findById(episodeId)
+    private Admission requireEpisode(Long episodeId) {
+        Admission episode = episodeRepository.findById(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
         Hibernate.initialize(episode.getPatient());
         return episode;
@@ -153,8 +153,8 @@ public class RecommendationAccessService {
         return run;
     }
 
-    private PjiEpisode requireRunEpisode(AiRecommendationRun run) {
-        PjiEpisode episode = run.getEpisode();
+    private Admission requireRunEpisode(AiRecommendationRun run) {
+        Admission episode = run.getEpisode();
         if (episode == null) {
             throw new ForbiddenException("AI recommendation run is not linked to a medical record");
         }

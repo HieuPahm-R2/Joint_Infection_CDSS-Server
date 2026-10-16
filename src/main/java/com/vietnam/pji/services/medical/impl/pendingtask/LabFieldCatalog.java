@@ -28,7 +28,7 @@ public class LabFieldCatalog {
 
     /**
      * Maps completeness field keys to the JSONB storage location and canonical
-     * frontend identifier inside {@code LabResult}. Sections: {@code hematology}
+     * frontend identifier inside {@code LabReport}. Sections: {@code hematology}
      * (hematologyTests), {@code fluid} (fluidAnalysis) and {@code biochemical}
      * (biochemicalData).
      *

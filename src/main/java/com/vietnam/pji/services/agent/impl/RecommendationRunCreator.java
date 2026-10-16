@@ -16,17 +16,17 @@ import com.vietnam.pji.dto.request.RabbitMQRecommendationMessage;
 import com.vietnam.pji.dto.request.RuleBasedDiagnosisDTO;
 import com.vietnam.pji.exception.ResourceNotFoundException;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
-import com.vietnam.pji.model.agentic.CaseClinicalSnapshot;
+import com.vietnam.pji.model.agentic.ClinicalSnapshot;
 import com.vietnam.pji.model.agentic.RecommendationJobOutbox;
 import com.vietnam.pji.model.agentic.RuleBasedDiagnosticResult;
-import com.vietnam.pji.model.medical.PjiEpisode;
-import com.vietnam.pji.repository.CaseClinicalSnapshotRepository;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.model.medical.Admission;
+import com.vietnam.pji.repository.ClinicalSnapshotRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.repository.ai.RecommendationJobOutboxRepository;
 import com.vietnam.pji.repository.ai.RuleBasedDiagnosticResultRepository;
 import com.vietnam.pji.services.diagnosis.PjiDiagnosticRuleEngine;
-import com.vietnam.pji.services.episode.EpisodeSnapshotAssemblerService.SnapshotBuildResult;
+import com.vietnam.pji.services.episode.AdmissionSnapshotAssemblerService.SnapshotBuildResult;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,8 +42,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 class RecommendationRunCreator {
 
-    private final EpisodeRepository episodeRepository;
-    private final CaseClinicalSnapshotRepository snapshotRepository;
+    private final AdmissionRepository episodeRepository;
+    private final ClinicalSnapshotRepository snapshotRepository;
     private final AiRecommendationRunRepository runRepository;
     private final RuleBasedDiagnosticResultRepository diagnosticResultRepository;
     private final RecommendationJobOutboxRepository outboxRepository;
@@ -93,10 +93,10 @@ class RecommendationRunCreator {
             RecommendationScope recommendationScope,
             Long createdByUserId,
             boolean enqueueAsyncJob) {
-        PjiEpisode episode = episodeRepository.findByIdForUpdate(episodeId)
+        Admission episode = episodeRepository.findByIdForUpdate(episodeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found: " + episodeId));
 
-        CaseClinicalSnapshot snapshot = CaseClinicalSnapshot.builder()
+        ClinicalSnapshot snapshot = ClinicalSnapshot.builder()
                 .episode(episode)
                 .snapshotNo(snapshotRepository.findMaxSnapshotNoByEpisodeId(episodeId) + 1)
                 .dataCompletenessScore(snapshotBuild.getCompletenessScore())
@@ -162,6 +162,6 @@ class RecommendationRunCreator {
         }
     }
 
-    record CreatedRecommendationRun(CaseClinicalSnapshot snapshot, AiRecommendationRun run) {
+    record CreatedRecommendationRun(ClinicalSnapshot snapshot, AiRecommendationRun run) {
     }
 }

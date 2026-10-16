@@ -18,7 +18,7 @@ public class Surgery extends AbstractEntity<Long> {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "episode_id", nullable = false)
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
-    private PjiEpisode episode;
+    private Admission episode;
 
     @Column(name = "surgery_date")
     private LocalDate surgeryDate;

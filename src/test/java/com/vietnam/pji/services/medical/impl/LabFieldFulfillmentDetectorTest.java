@@ -11,9 +11,9 @@ import com.vietnam.pji.services.medical.impl.pendingtask.LabFieldFulfillmentDete
 import org.junit.jupiter.api.Test;
 
 import com.vietnam.pji.constant.CultureStatus;
-import com.vietnam.pji.constant.ImplantType;
-import com.vietnam.pji.model.medical.ClinicalRecord;
-import com.vietnam.pji.model.medical.CultureResult;
+import com.vietnam.pji.constant.ImplantStability;
+import com.vietnam.pji.model.medical.ClinicalAssessment;
+import com.vietnam.pji.model.medical.SpecimenCulture;
 import com.vietnam.pji.model.medical.MedicalHistory;
 import com.vietnam.pji.model.medical.Surgery;
 
@@ -101,9 +101,9 @@ class LabFieldFulfillmentDetectorTest {
 
     @Test
     void clinicalFieldsAreSatisfiedOnlyByPersistedEvidence() {
-        ClinicalRecord record = ClinicalRecord.builder()
+        ClinicalAssessment record = ClinicalAssessment.builder()
                 .sinusTract(true)
-                .implantStability(ImplantType.UNKNOWN)
+                .implantStability(ImplantStability.UNKNOWN)
                 .build();
 
         assertThat(detector.isClinicalFieldSatisfied("sinus_tract", record, null, List.of(), List.of()))
@@ -124,10 +124,10 @@ class LabFieldFulfillmentDetectorTest {
 
     @Test
     void cultureFieldRequiresAUsableOrNamedCulture() {
-        CultureResult pending = CultureResult.builder().result(CultureStatus.PENDING).build();
-        CultureResult notPerformed = CultureResult.builder().result(CultureStatus.NOT_PERFORMED).build();
-        CultureResult noGrowth = CultureResult.builder().result(CultureStatus.NO_GROWTH).build();
-        CultureResult named = CultureResult.builder().result(CultureStatus.PENDING).name("S. aureus").build();
+        SpecimenCulture pending = SpecimenCulture.builder().result(CultureStatus.PENDING).build();
+        SpecimenCulture notPerformed = SpecimenCulture.builder().result(CultureStatus.NOT_PERFORMED).build();
+        SpecimenCulture noGrowth = SpecimenCulture.builder().result(CultureStatus.NO_GROWTH).build();
+        SpecimenCulture named = SpecimenCulture.builder().result(CultureStatus.PENDING).name("S. aureus").build();
 
         assertThat(detector.isClinicalFieldSatisfied("culture_results", null, null, List.of(pending), List.of()))
                 .isFalse();

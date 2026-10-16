@@ -10,10 +10,10 @@ import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.PharmacistFinalDecision;
 import com.vietnam.pji.model.auth.Role;
 import com.vietnam.pji.model.auth.User;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
 import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.RecommendationFinalSelectionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 class ClinicalDecisionServiceImplTest {
 
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
-    private final EpisodeRepository episodeRepository = mock(EpisodeRepository.class);
+    private final AdmissionRepository episodeRepository = mock(AdmissionRepository.class);
     private final DoctorRecommendationReviewRepository reviewRepository = mock(DoctorRecommendationReviewRepository.class);
     private final DoctorFinalDecisionRepository doctorDecisionRepository = mock(DoctorFinalDecisionRepository.class);
     private final PharmacistFinalDecisionRepository pharmacistDecisionRepository = mock(PharmacistFinalDecisionRepository.class);
@@ -114,7 +114,7 @@ class ClinicalDecisionServiceImplTest {
 
 
     private AiRecommendationRun run(Long runId, Long ownerUserId, RecommendationScope scope) {
-        PjiEpisode episode = PjiEpisode.builder().build();
+        Admission episode = Admission.builder().build();
         episode.setId(91L);
         AiRecommendationRun run = AiRecommendationRun.builder()
                 .episode(episode)

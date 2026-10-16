@@ -8,9 +8,9 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 import com.vietnam.pji.constant.CultureStatus;
-import com.vietnam.pji.constant.ImplantType;
-import com.vietnam.pji.model.medical.ClinicalRecord;
-import com.vietnam.pji.model.medical.CultureResult;
+import com.vietnam.pji.constant.ImplantStability;
+import com.vietnam.pji.model.medical.ClinicalAssessment;
+import com.vietnam.pji.model.medical.SpecimenCulture;
 import com.vietnam.pji.model.medical.MedicalHistory;
 import com.vietnam.pji.model.medical.Surgery;
 
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
  * <ul>
  * <li><strong>Lab fields</strong> are matched against the normalized row
  * identities (row id, row name) and biochemical keys of a just-saved
- * {@code LabResult}, using the alias table in {@link LabFieldCatalog} shared
+ * {@code LabReport}, using the alias table in {@link LabFieldCatalog} shared
  * with the Rag_Agentic completeness check.</li>
  * <li><strong>Clinical fields</strong> (sinus tract, infection type, implant
  * stability, allergies, culture results, histology) are matched against the
@@ -78,9 +78,9 @@ public class LabFieldFulfillmentDetector {
      * @param surgeries surgeries of the episode; may be empty
      */
     public boolean isClinicalFieldSatisfied(String field,
-            ClinicalRecord record,
+            ClinicalAssessment record,
             MedicalHistory history,
-            List<CultureResult> cultures,
+            List<SpecimenCulture> cultures,
             List<Surgery> surgeries) {
         if (field == null) {
             return false;
@@ -90,7 +90,7 @@ public class LabFieldFulfillmentDetector {
             case "infection_type" -> record != null && record.getOnsetTiming() != null;
             case "implant_stability" -> record != null
                     && record.getImplantStability() != null
-                    && record.getImplantStability() != ImplantType.UNKNOWN;
+                    && record.getImplantStability() != ImplantStability.UNKNOWN;
             case "allergies" -> history != null && history.getIsAllergy() != null;
             case "culture_results" -> hasUsableCultureResult(cultures);
             case "positive_histology" -> hasHistologyFindings(surgeries);
@@ -171,11 +171,11 @@ public class LabFieldFulfillmentDetector {
         return false;
     }
 
-    private boolean hasUsableCultureResult(List<CultureResult> cultures) {
+    private boolean hasUsableCultureResult(List<SpecimenCulture> cultures) {
         if (cultures == null) {
             return false;
         }
-        for (CultureResult culture : cultures) {
+        for (SpecimenCulture culture : cultures) {
             if (culture.getResult() != null
                     && culture.getResult() != CultureStatus.PENDING
                     && culture.getResult() != CultureStatus.NOT_PERFORMED) {

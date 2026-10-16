@@ -24,10 +24,10 @@ import com.vietnam.pji.exception.BusinessException;
 import com.vietnam.pji.exception.UploadSessionGoneException;
 import com.vietnam.pji.exception.UploadSessionUnauthorizedException;
 import com.vietnam.pji.model.medical.Patient;
-import com.vietnam.pji.model.medical.PjiEpisode;
+import com.vietnam.pji.model.medical.Admission;
 import com.vietnam.pji.model.upload.UploadSession;
 import com.vietnam.pji.model.upload.UploadSessionFile;
-import com.vietnam.pji.repository.EpisodeRepository;
+import com.vietnam.pji.repository.AdmissionRepository;
 import com.vietnam.pji.repository.upload.UploadSessionRepository;
 import com.vietnam.pji.services.medical.PatientService;
 import com.vietnam.pji.utils.MinioChannel;
@@ -79,7 +79,7 @@ class UploadSessionServiceTest {
     void createRejectsEpisodeFromAnotherPatient() {
         Patient episodePatient = new Patient();
         episodePatient.setId(8L);
-        PjiEpisode episode = new PjiEpisode();
+        Admission episode = new Admission();
         episode.setPatient(episodePatient);
         service = serviceWith(patientService(), episodeRepository(episode));
 
@@ -102,7 +102,7 @@ class UploadSessionServiceTest {
     void createStoresSessionInRepositoryAndReturnsPayload() {
         Patient episodePatient = new Patient();
         episodePatient.setId(7L);
-        PjiEpisode episode = new PjiEpisode();
+        Admission episode = new Admission();
         episode.setPatient(episodePatient);
         service = serviceWith(patientService(), episodeRepository(episode));
 
@@ -176,7 +176,7 @@ class UploadSessionServiceTest {
 
     private UploadSessionService serviceWith(
             PatientService patientService,
-            EpisodeRepository episodeRepository) {
+            AdmissionRepository episodeRepository) {
         return new UploadSessionService(
                 repository,
                 properties,
@@ -201,10 +201,10 @@ class UploadSessionServiceTest {
                 });
     }
 
-    private EpisodeRepository episodeRepository(PjiEpisode episode) {
-        return (EpisodeRepository) Proxy.newProxyInstance(
-                EpisodeRepository.class.getClassLoader(),
-                new Class<?>[] {EpisodeRepository.class},
+    private AdmissionRepository episodeRepository(Admission episode) {
+        return (AdmissionRepository) Proxy.newProxyInstance(
+                AdmissionRepository.class.getClassLoader(),
+                new Class<?>[] {AdmissionRepository.class},
                 (proxy, method, args) -> {
                     if ("findById".equals(method.getName())) return Optional.of(episode);
                     return defaultValue(method.getReturnType());
