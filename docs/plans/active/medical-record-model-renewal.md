@@ -2,6 +2,43 @@
 
 Date: 2026-10-16
 
+## Incident: commit `40448e5` was contaminated
+
+**What happened.** The round-13 commit was meant to carry only the optimistic
+locking change. It carried twelve files, four of which belonged to an unrelated
+in-flight refactor by the repository owner that moved `ActivePrincipal` and
+`UserAvatarService` from `...services.auth` into `...services.auth.impl`. That
+move left `MAX_AVATAR_SIZE_BYTES` package-private while its test stayed in the old
+package, so **HEAD does not compile its tests from clean**. Verified by exporting
+a pristine `git archive HEAD` and running `clean test-compile`, which fails with
+`MAX_AVATAR_SIZE_BYTES is not public in ...auth.impl.UserAvatarService`.
+
+**Two process failures caused it.**
+
+1. The status check ran `git status -sb | Select-Object -First 1`. That prints only
+   the branch line, so every dirty entry was hidden and "the tree is clean" was
+   reported on an unclean tree.
+2. `git add -A` staged the whole tree, including the owner's work.
+
+Compounding both: the round-13 green run reused `target/`, so Maven skipped test
+compilation and the breakage stayed invisible.
+
+**Scope, checked commit by commit.** Only `40448e5` is affected. `e1bf52d`,
+`bd45896`, `204d7df`, `0270f62` and `c048d35` contain no auth files, and before
+`40448e5` the class still lived in `...services.auth`, which is why the earlier
+green runs were genuine.
+
+**Effect on earlier claims.** The behavioural evidence recorded for phases 2, 3a,
+4 and the optimistic locking still measures what it measured. What does not hold
+is any implication that the tree compiled from clean at the moment of the
+round-13 run; tests executed then may have included stale compiled classes.
+
+**Corrections adopted.** Every later change is staged by explicit path, never with
+`git add -A`, and `git status --porcelain` is read in full.
+
+**Owner decision, 2026-10-16.** The owner repairs the auth refactor; this
+programme does not touch those files.
+
 ## Status
 
 Active
