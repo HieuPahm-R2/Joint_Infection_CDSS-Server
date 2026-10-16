@@ -96,4 +96,9 @@ public class ClinicalAssessment extends AbstractEntity<Long> {
         return null;
     }
 
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

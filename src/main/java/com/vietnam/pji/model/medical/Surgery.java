@@ -35,4 +35,9 @@ public class Surgery extends AbstractEntity<Long> {
     @Column(name = "intraoperative_purulence")
     private Boolean intraoperativePurulence;
 
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

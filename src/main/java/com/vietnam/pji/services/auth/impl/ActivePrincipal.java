@@ -5,7 +5,6 @@ import com.vietnam.pji.model.auth.User;
 /**
  * The authenticated caller of the current request, resolved and validated
  * against the deny-by-default policy in
- * {@code docs/decisions/0008-general-authorization-policy.md}.
  *
  * <p>
  * An {@code ActivePrincipal} exists only for a user that is present, has

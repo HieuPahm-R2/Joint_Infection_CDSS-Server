@@ -28,4 +28,9 @@ public class AntibioticSusceptibility extends AbstractEntity<Long> {
     @Column(name = "sensitivity_code", length = 10)
     private String sensitivityCode;
 
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

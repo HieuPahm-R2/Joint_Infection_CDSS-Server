@@ -9,6 +9,7 @@ import com.vietnam.pji.model.auth.Permission;
 import com.vietnam.pji.model.auth.Role;
 import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.repository.UserRepository;
+import com.vietnam.pji.services.auth.impl.UserAvatarService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.MinioChannel;
 import org.junit.jupiter.api.Test;

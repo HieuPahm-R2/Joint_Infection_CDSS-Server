@@ -237,6 +237,11 @@ Why phase 2 is contract-neutral, verified rather than assumed:
       the table and column names, and `pji_dev` was brought to v36.
 - [x] Phase 4: schema rename executed as `V37`, with the JPA annotations
       retargeted and the suite green against a database Flyway migrated to v37.
+- [x] Clinical-child optimistic locking (the first slice of phase 5), executed as
+      `V38` with `@Version` on the six independently written clinical entities.
+- [ ] Phase 5 remainder: replace the shared snapshot-cache side effect with a
+      domain event, change the cascades, and stop returning entities from the
+      aggregate response DTO.
 - [x] Phase 3a: serve every episode-scoped route on `/admissions` as well, with
       an invariant test. Committed as `e1bf52d`.
 - [ ] Phase 3b: the JSON body keys. Blocked on a frontend-first move, because
@@ -834,6 +839,25 @@ BOM scan returns 0, and `gitnexus detect-changes --scope all` reports 29 files,
 
 The medium rating, against phase 2's critical, reflects what the change actually
 is: annotation string values moved, while no symbol structure did.
+
+**Clinical-child optimistic locking** — executed as `V38` after phase 4, because
+the columns it adds only exist under the renamed tables. `@Version` now sits on
+`ClinicalAssessment`, `LabReport`, `SpecimenCulture`, `AntibioticSusceptibility`,
+`ImagingStudy` and `Surgery`; before this, only the three decision-support
+entities had it, so two writers could update the same clinical row concurrently
+and lose one change.
+
+The episode edit lock covers the aggregate save, but not the writers that go
+through their own services: lab auto-fulfilment, the QR upload session and the
+OCR image writer. `medical_histories` is deliberately excluded — it is a 1:1 row
+keyed by the admission id and is written only under that lock.
+
+Verified: a fresh database received all **38 migrations**, the suite returned
+**140 tests / 0 failures / 0 errors / BUILD SUCCESS** under
+`ddl-auto: validate`, `version_no` exists on ten columns (the six new ones, the
+three decision-support entities, and the orphan `treatment_plan_versions`), and
+`detect-changes` reports 10 files, 12 symbols, **0 affected processes, risk low**,
+with neither `partial` nor `truncated`.
 
 Known limits of this result:
 

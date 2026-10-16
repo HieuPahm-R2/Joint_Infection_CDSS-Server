@@ -16,7 +16,7 @@ import com.vietnam.pji.model.auth.UserTrustedDevice;
 import com.vietnam.pji.repository.UserTrustedDeviceRepository;
 import com.vietnam.pji.services.auth.DeviceVerificationService;
 import com.vietnam.pji.services.auth.PasswordRecoveryService;
-import com.vietnam.pji.services.auth.UserAvatarService;
+import com.vietnam.pji.services.auth.impl.UserAvatarService;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.services.security.CaptchaService;

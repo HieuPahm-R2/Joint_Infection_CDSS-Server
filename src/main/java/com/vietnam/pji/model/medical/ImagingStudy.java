@@ -52,4 +52,9 @@ public class ImagingStudy implements Serializable {
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_at")
     private Date createdAt;
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

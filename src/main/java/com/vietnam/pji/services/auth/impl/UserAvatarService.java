@@ -1,4 +1,4 @@
-package com.vietnam.pji.services.auth;
+package com.vietnam.pji.services.auth.impl;
 
 import com.vietnam.pji.config.properties.AvatarStorageProperties;
 import com.vietnam.pji.dto.request.UpdateOwnProfileRequestDTO;

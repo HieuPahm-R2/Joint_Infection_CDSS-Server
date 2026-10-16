@@ -49,4 +49,9 @@ public class SpecimenCulture extends AbstractEntity<Long> {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }

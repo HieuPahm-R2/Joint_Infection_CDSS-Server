@@ -40,4 +40,9 @@ public class LabReport extends AbstractEntity<Long> {
     @Column(name = "biochemical_data", columnDefinition = "jsonb")
     private Map<String, Object> biochemicalData;
 
+
+    @Version
+    @Column(name = "version_no", nullable = false)
+    @Builder.Default
+    private Long version = 0L;
 }
