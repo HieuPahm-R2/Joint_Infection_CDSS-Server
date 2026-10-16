@@ -227,8 +227,9 @@ Why phase 2 is contract-neutral, verified rather than assumed:
       episode, the nine classes coupled to the AI snapshot cache, the 40
       remaining `Hibernate.initialize` sites, and the three entities that have
       optimistic locking.
-- [ ] Confirm a clean working tree in `Backend_Server`.
-- [ ] Phase 2: Java-type rename, contract-neutral, with impact analysis.
+- [x] Confirm a clean working tree in `Backend_Server` (commit `34d9c21`).
+- [x] Phase 2: Java-type rename, contract-neutral, with impact analysis.
+      Committed as `dec14a0`.
 - [ ] Phase 3: route rename plus frontend contract fixes.
 - [ ] Phase 4: schema rename with compatibility views.
 - [ ] Phase 5: aggregate separation.
@@ -436,5 +437,37 @@ Two supporting counts:
 
 ## Result
 
-In progress. Phase 0 complete: decision 0010 is accepted and indexed, and this
-plan is the durable record.
+Phase 0 and phase 2 are complete; the goal stays active.
+
+**Phase 0** — decision 0010 is accepted and indexed, this plan is the durable
+record, and the vocabulary, aggregate boundaries and open questions are all
+written down before any code moved.
+
+**Phase 2** — executed and committed as `dec14a0` (rename) after `34d9c21`
+(the in-flight authorization and review work the tree was carrying). 74 classes
+renamed, 105 files rewritten, 74 files renamed, 2 dead enums deleted. Verified
+in this order: pre-flight clean tree, 0 residual old class identifiers under
+`src`, 0 files carrying a BOM, `./mvnw.cmd test` on the live tree against
+PostgreSQL 16 with all 36 migrations applied returning
+`138 tests / 0 failures / 0 errors / BUILD SUCCESS / exit 0`, with
+`PjiApplicationTests.contextLoads` passing under `ddl-auto: validate`, and
+`gitnexus detect-changes --scope all` reporting neither `partial` nor
+`truncated`.
+
+Phase 2 was deliberately contract-neutral. Everything that still says "Episode"
+where a user can see it — the `@Tag`, `@ApiResponse` and response-message
+wording, the `/episodes` routes, and the JSON body keys — is phase 3 work, and
+the residual-identifier check confirms none of it moved.
+
+Known limits of this result:
+
+- `detect-changes` rates the rename **critical** (31 files, 120 symbols, 104
+  affected flows). That rating reflects breadth, not observed breakage: the
+  rename is compiler- and context-verified, and the graph counts type changes on
+  properties whose names did not move.
+- The GitNexus process catalogue is truncated (312 of 512 candidate entry points
+  never ranked, 257 flows dropped at `maxProcesses`), so an absent flow in the
+  graph is not evidence the path does not exist. `detect-changes` itself reported
+  no `partial` or `truncated` flag.
+- Phase 3 onward remains unstarted, and the schema rename additionally waits for
+  `pji_dev` to reach the repository's Flyway version.
