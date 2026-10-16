@@ -563,6 +563,12 @@ why their counts looked identical. The script now uses
 Status: the rehearsal does **not** reach green. The next step is a curated
 mapping, not another rule iteration.
 
+Owner decision, 2026-10-16: before any phase 3b code is written, a per-DTO
+mapping table — old key, new key, and the reason each stays or moves — is drafted
+for approval, together with the exception list (wire values, table and constraint
+names, category values) and the `Rag_Agentic` changes that must ship in the same
+change. Coding 3b without that table is what the rehearsal proved unsafe.
+
 
 ## Result
 
