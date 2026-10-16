@@ -89,20 +89,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public PaginationResultDTO getAll(Specification<User> spec, Pageable pageable) {
         Page<User> page = userRepository.findAll(spec, pageable);
-        PaginationResultDTO.Meta mt = new PaginationResultDTO.Meta();
-        mt.setPage(page.getNumber() + 1);
-        mt.setPageSize(page.getSize());
-        mt.setPages(page.getTotalPages());
-        mt.setTotal(page.getTotalElements());
-
         List<UserDetailResponse> users = page.getContent().stream()
                 .map(userMapper::toUserDetailResponse)
                 .collect(Collectors.toList());
 
-        PaginationResultDTO res = new PaginationResultDTO();
-        res.setMeta(mt);
-        res.setResult(users);
-        return res;
+        return PaginationResultDTO.of(page, users);
     }
 
     @Override
@@ -116,6 +107,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public User handleGetUserByUsername(String username) {
         return userRepository.findByEmail(username);
+    }
+
+    @Override
+    public User handleGetUserById(Long id) {
+        return id == null ? null : userRepository.findById(id).orElse(null);
     }
 
     @Override

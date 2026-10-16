@@ -25,7 +25,7 @@ public class EpisodeLockServiceImpl implements EpisodeLockService {
     static final Duration LOCK_TTL = Duration.ofMinutes(3);
 
     /**
-     * Atomic check-and-extend: PEXPIRE only if the current value equals our holder.
+     * Atomic gia hạn: PEXPIRE only if the current value equals our holder.
      * Returns the new TTL in ms, or -1 if the lock is missing or owned by someone
      * else.
      */
@@ -37,7 +37,7 @@ public class EpisodeLockServiceImpl implements EpisodeLockService {
             Long.class);
 
     /**
-     * Atomic check-and-delete: DEL only if the current value equals our holder.
+     * Atomic nhả khóa: DEL only if the current value equals our holder.
      * Returns 1 on release, 0 if the caller is not the holder.
      */
     private static final DefaultRedisScript<Long> RELEASE_SCRIPT = new DefaultRedisScript<>(
@@ -50,13 +50,13 @@ public class EpisodeLockServiceImpl implements EpisodeLockService {
     private final EpisodeRepository episodeRepository;
 
     @Override
-    public EpisodeLockResponseDTO acquire(Long episodeId, Long userId) {
+    public EpisodeLockResponseDTO acquire(Long episodeId, Long userId) { // lấy khóa
+        // Kiểm tra episode có tồn tại trong database không
         requireEpisodeExists(episodeId);
         String key = lockKey(episodeId);
         String holder = String.valueOf(userId);
-
-        Boolean acquired = redisTemplate.opsForValue()
-                .setIfAbsent(key, holder, LOCK_TTL);
+        // Thử tạo khóa
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key, holder, LOCK_TTL);
 
         if (Boolean.TRUE.equals(acquired)) {
             log.info("Episode {} locked by user {} (ttl={}s)", episodeId, userId, LOCK_TTL.toSeconds());
@@ -117,6 +117,8 @@ public class EpisodeLockServiceImpl implements EpisodeLockService {
 
     @Override
     public void assertHeldBy(Long episodeId, Long userId) {
+        // Đọc khóa trong Redis và xác nhận người gọi là chủ khóa. Có thể dùng trước khi
+        // lưu thay đổi episode
         String key = lockKey(episodeId);
         String currentHolder = redisTemplate.opsForValue().get(key);
         if (!String.valueOf(userId).equals(currentHolder)) {

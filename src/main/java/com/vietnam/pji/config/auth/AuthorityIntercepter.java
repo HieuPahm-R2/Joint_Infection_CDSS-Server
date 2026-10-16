@@ -1,5 +1,13 @@
 package com.vietnam.pji.config.auth;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,19 +19,46 @@ import com.vietnam.pji.model.auth.User;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.feat.RedisService;
 import com.vietnam.pji.utils.SecurityUtils;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.servlet.HandlerMapping;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
+/**
+ * Functional-layer authorization: does the caller's active role grant the
+ * {@code METHOD:path} being invoked?
+ *
+ * <p>
+ * This is layer 1 of {@code docs/decisions/0008-general-authorization-policy.md};
+ * it says nothing about which clinical records the caller may reach, which is
+ * layer 2 in the service layer.
+ *
+ * <p>
+ * Two structural problems were fixed here without changing the decision:
+ *
+ * <ul>
+ * <li>The handler used to be {@code @Transactional}, so every non-whitelisted
+ * request opened a database transaction and held a Hikari connection while
+ * performing a Redis round trip. Permission lookup is a read against a
+ * Redis-cached value; the annotation only created pool pressure.</li>
+ * <li>{@code System.out.println} tracing ran on every request, and a dead
+ * {@code if (permissionKeys != null)} re-check plus a comment claiming that a
+ * missing role "passes through" contradicted the code, which denies.</li>
+ * </ul>
+ */
 @Slf4j
+@Component
 public class AuthorityIntercepter implements HandlerInterceptor {
+
+    /**
+     * Cached absence of permissions. Denies, and is cached so a caller without an
+     * active role does not pay a database lookup per request. The short TTL bounds
+     * how long a revoked role can still be presented before the next lookup.
+     */
+    private static final String NO_ROLE_SENTINEL = "NO_ROLE";
+
+    private static final long PERMISSIONS_CACHE_TTL = 600; // 10 minutes
+
     @Autowired
     UserService userService;
 
@@ -33,53 +68,39 @@ public class AuthorityIntercepter implements HandlerInterceptor {
     @Autowired
     ObjectMapper objectMapper;
 
-    private static final long PERMISSIONS_CACHE_TTL = 600; // 10 minutes
-    private static final String NO_ROLE_SENTINEL = "NO_ROLE";
-
-    @Transactional
     @Override
     public boolean preHandle(
             HttpServletRequest request,
             HttpServletResponse response,
             Object handler) throws Exception {
         String path = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
-        String requestURI = request.getRequestURI();
         String httpMethod = request.getMethod();
-        System.out.println(">>> RUN preHandle");
-        System.out.println(">>> path= " + path);
-        System.out.println(">>> httpMethod= " + httpMethod);
-        System.out.println(">>> requestURI= " + requestURI);
-        // Check Permission
-        String email = SecurityUtils.getCurrentUserLogin().isPresent()
-                ? SecurityUtils.getCurrentUserLogin().get()
-                : "";
-        if (email.isEmpty() || path == null) {
+
+        String email = SecurityUtils.getCurrentUserLogin().orElse("");
+        if (email.isBlank() || path == null) {
             throw new ForbiddenException("Authenticated principal and matched route are required");
         }
-        if (!email.isEmpty()) {
-            List<String> permissionKeys = loadPermissions(email);
-            if (permissionKeys == null) {
-                throw new ForbiddenException("An active role is required");
-            }
-            if (permissionKeys != null) {
-                String requestKey = httpMethod + ":" + path;
-                if (!permissionKeys.contains(requestKey)) {
-                    throw new ForbiddenException("You don't have permission to access");
-                }
-            }
-            // permissionKeys == null means user has no role → pass through (matches
-            // original behavior)
+
+        List<String> permissionKeys = loadPermissions(email);
+        if (permissionKeys == null) {
+            // Deny by default: an account with no active role may invoke nothing.
+            throw new ForbiddenException("An active role is required");
+        }
+
+        String requestKey = httpMethod + ":" + path;
+        if (!permissionKeys.contains(requestKey)) {
+            throw new ForbiddenException("You don't have permission to access");
         }
         return true;
     }
 
     /**
-     * Load permissions from Redis cache, fallback to DB on miss.
-     * Returns null if user has no role (pass through), or a list of "METHOD:path"
-     * strings.
+     * Load permissions from the Redis cache, falling back to the database.
+     *
+     * @return the caller's {@code METHOD:path} keys, or {@code null} when the
+     *         account has no usable role - which callers must treat as a denial
      */
     private List<String> loadPermissions(String email) {
-        // Try cache first
         try {
             String cached = redisService.getCachedUserPermissions(email);
             if (cached != null) {
@@ -93,21 +114,19 @@ public class AuthorityIntercepter implements HandlerInterceptor {
             log.warn("Failed to read permission cache for {}, falling back to DB", email);
         }
 
-        // Cache miss — load from DB
         User user = this.userService.handleGetUserByUsername(email);
         if (user != null && UserStatus.ACTIVE.equals(user.getStatus())) {
             Role role = user.getRole();
             if (role != null && role.isActive()) {
                 List<Permission> permissions = role.getPermissions();
                 List<String> keys = permissions.stream()
-                        .map(p -> p.getMethod() + ":" + p.getApiPath())
+                        .map(permission -> permission.getMethod() + ":" + permission.getApiPath())
                         .collect(Collectors.toList());
                 cachePermissionsSafe(email, keys);
                 return keys;
             }
         }
 
-        // No user or no role — cache sentinel to avoid repeated DB lookups
         cachePermissionsSafe(email, null);
         return null;
     }

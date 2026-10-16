@@ -18,6 +18,7 @@ import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.RecommendationFinalSelectionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
+import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.clinicaldecision.impl.ClinicalDecisionServiceImpl;
 import com.vietnam.pji.utils.SecurityUtils;
@@ -58,6 +59,7 @@ class ClinicalDecisionServiceImplTest {
                 finalSelectionRepository,
                 accessService,
                 userService,
+                new CurrentActorProvider(userService),
                 runMapper);
     }
 
@@ -130,6 +132,9 @@ class ClinicalDecisionServiceImplTest {
                 .role(new Role(roleName, roleName, true, null, null))
                 .build();
         user.setId(id);
+        // The shared actor provider rejects a non-ACTIVE account before any of the
+        // decision rules are reached.
+        user.setStatus(com.vietnam.pji.constant.UserStatus.ACTIVE);
         return user;
     }
 }

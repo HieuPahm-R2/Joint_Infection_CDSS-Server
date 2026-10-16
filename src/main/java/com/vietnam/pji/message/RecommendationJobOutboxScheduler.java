@@ -10,8 +10,8 @@ public class RecommendationJobOutboxScheduler {
     private final RecommendationJobOutboxDispatcher dispatcher;
     private final int batchSize;
 
-    public RecommendationJobOutboxScheduler(
-            RecommendationJobOutboxDispatcher dispatcher,
+    // mặc định mỗi 1 giây và xử lý tối đa 10 job mỗi lượt
+    public RecommendationJobOutboxScheduler(RecommendationJobOutboxDispatcher dispatcher,
             @Value("${app.recommendation-outbox.batch-size:10}") int batchSize) {
         this.dispatcher = dispatcher;
         this.batchSize = Math.max(1, batchSize);

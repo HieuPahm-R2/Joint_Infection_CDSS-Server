@@ -67,17 +67,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     public PaginationResultDTO fetchAll(Specification<Permission> spec, Pageable pageable) {
         Page<Permission> page = this.permissionRepository.findAll(spec, pageable);
-        PaginationResultDTO rs = new PaginationResultDTO();
-        PaginationResultDTO.Meta mt = new PaginationResultDTO.Meta();
-
-        mt.setPage(page.getNumber() + 1);
-        mt.setPageSize(page.getSize());
-        mt.setPages(page.getTotalPages());
-        mt.setTotal(page.getTotalElements());
-
-        rs.setMeta(mt);
-        rs.setResult(page.getContent());
-        return rs;
+        return PaginationResultDTO.of(page);
     }
 
     @Override

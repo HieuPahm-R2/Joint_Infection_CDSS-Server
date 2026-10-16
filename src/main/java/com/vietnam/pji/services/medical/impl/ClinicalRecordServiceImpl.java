@@ -7,11 +7,10 @@ import com.vietnam.pji.model.medical.ClinicalRecord;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.medical.ClinicalRecordRepository;
-import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.medical.ClinicalRecordService;
 import com.vietnam.pji.utils.mapper.ClinicalRecordMapper;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
     private final ClinicalRecordRepository clinicalRecordRepository;
     private final EpisodeRepository episodeRepository;
     private final ClinicalRecordMapper clinicalRecordMapper;
-    private final RedisService redisService;
+    private final EpisodeGraphLoader episodeGraph;
 
     @Override
     @Transactional
@@ -34,9 +33,8 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
         ClinicalRecord record = clinicalRecordMapper.toEntity(data);
         record.setEpisode(episode);
         ClinicalRecord saved = clinicalRecordRepository.save(record);
-        redisService.evictSnapshotCache(data.getEpisodeId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(episode.getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -47,9 +45,8 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException("Clinical record not found"));
         clinicalRecordMapper.update(data, record);
         ClinicalRecord saved = clinicalRecordRepository.save(record);
-        redisService.evictSnapshotCache(record.getEpisode().getId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(record.getEpisode().getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -58,8 +55,7 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
     public ClinicalRecord getById(Long id) {
         ClinicalRecord record = clinicalRecordRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinical record not found"));
-        Hibernate.initialize(record.getEpisode());
-        Hibernate.initialize(record.getEpisode().getPatient());
+        episodeGraph.loadPatient(record.getEpisode());
         return record;
     }
 
@@ -70,7 +66,7 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException("Clinical record not found"));
         Long episodeId = record.getEpisode().getId();
         clinicalRecordRepository.deleteById(id);
-        redisService.evictSnapshotCache(episodeId);
+        episodeGraph.evictSnapshot(episodeId);
     }
 
     @Override
@@ -80,19 +76,7 @@ public class ClinicalRecordServiceImpl implements ClinicalRecordService {
             throw new ResourceNotFoundException("Episode not found");
         }
         Page<ClinicalRecord> page = clinicalRecordRepository.findByEpisodeId(episodeId, pageable);
-        page.getContent().forEach(r -> {
-            Hibernate.initialize(r.getEpisode());
-            Hibernate.initialize(r.getEpisode().getPatient());
-        });
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        page.getContent().forEach(r -> episodeGraph.loadPatient(r.getEpisode()));
+        return PaginationResultDTO.of(page);
     }
 }

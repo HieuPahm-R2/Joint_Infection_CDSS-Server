@@ -7,12 +7,11 @@ import com.vietnam.pji.model.medical.LabResult;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.LabResultRepository;
-import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.medical.LabResultService;
 import com.vietnam.pji.services.medical.PendingLabTaskService;
 import com.vietnam.pji.utils.mapper.LabResultMapper;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -26,7 +25,7 @@ public class LabResultServiceImpl implements LabResultService {
     private final EpisodeRepository episodeRepository;
     private final LabResultMapper labResultMapper;
     private final PendingLabTaskService pendingLabTaskService;
-    private final RedisService redisService;
+    private final EpisodeGraphLoader episodeGraph;
 
     @Override
     @Transactional
@@ -41,9 +40,8 @@ public class LabResultServiceImpl implements LabResultService {
                 episode.getId(), saved.getId(),
                 data.getHematologyTests(), data.getFluidAnalysis(), data.getBiochemicalData());
 
-        redisService.evictSnapshotCache(data.getEpisodeId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(episode.getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -60,9 +58,8 @@ public class LabResultServiceImpl implements LabResultService {
                 episodeId, saved.getId(),
                 data.getHematologyTests(), data.getFluidAnalysis(), data.getBiochemicalData());
 
-        redisService.evictSnapshotCache(episodeId);
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(episodeId);
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -71,8 +68,7 @@ public class LabResultServiceImpl implements LabResultService {
     public LabResult getById(Long id) {
         LabResult labResult = labResultRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Lab result not found"));
-        Hibernate.initialize(labResult.getEpisode());
-        Hibernate.initialize(labResult.getEpisode().getPatient());
+        episodeGraph.loadPatient(labResult.getEpisode());
         return labResult;
     }
 
@@ -83,7 +79,7 @@ public class LabResultServiceImpl implements LabResultService {
                 .orElseThrow(() -> new ResourceNotFoundException("Lab result not found"));
         Long episodeId = labResult.getEpisode().getId();
         labResultRepository.deleteById(id);
-        redisService.evictSnapshotCache(episodeId);
+        episodeGraph.evictSnapshot(episodeId);
     }
 
     @Override
@@ -93,19 +89,7 @@ public class LabResultServiceImpl implements LabResultService {
             throw new ResourceNotFoundException("Episode not found");
         }
         Page<LabResult> page = labResultRepository.findByEpisodeId(episodeId, pageable);
-        page.getContent().forEach(r -> {
-            Hibernate.initialize(r.getEpisode());
-            Hibernate.initialize(r.getEpisode().getPatient());
-        });
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        page.getContent().forEach(r -> episodeGraph.loadPatient(r.getEpisode()));
+        return PaginationResultDTO.of(page);
     }
 }

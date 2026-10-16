@@ -9,6 +9,8 @@ Start with the smallest authoritative surface.
 - `ARCHITECTURE.md`: current product, code, state, update, and ownership
   boundaries.
 - `HARNESS.md`: product principles and installed-core model.
+- `architecture-review-2026-10-14.md`: SOLID, design-pattern and clean-code
+  review with the remediated findings and the ones awaiting an owner decision.
 - `product/`: current product behavior and installation contract.
 - `decisions/`: lasting choices future work must inherit.
 - `plans/`: one durable working-memory document for work that needs it.

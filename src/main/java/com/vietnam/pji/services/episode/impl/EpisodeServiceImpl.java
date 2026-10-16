@@ -7,10 +7,12 @@ import com.vietnam.pji.model.medical.Patient;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.PatientRepository;
+import com.vietnam.pji.services.episode.EpisodeCareTeamService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.episode.EpisodeService;
+import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.utils.mapper.EpisodeMapper;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -24,6 +26,9 @@ public class EpisodeServiceImpl implements EpisodeService {
     private final EpisodeRepository episodeRepository;
     private final PatientRepository patientRepository;
     private final EpisodeMapper episodeMapper;
+    private final EpisodeGraphLoader episodeGraph;
+    private final EpisodeCareTeamService careTeamService;
+    private final CurrentActorProvider actorProvider;
 
     @Override
     @Transactional
@@ -35,7 +40,15 @@ public class EpisodeServiceImpl implements EpisodeService {
         episode.setPatient(patient);
 
         PjiEpisode saved = episodeRepository.save(episode);
-        Hibernate.initialize(saved.getPatient());
+        // Flush so the generated id is available: care-team membership references it.
+        episodeRepository.flush();
+        // The creator becomes the episode's owner. This replaces the free-text
+        // created_by email column as the source of ownership: that column cannot
+        // express a colleague's access and is blank for records written outside an
+        // authenticated request, which the old check read as "everyone may access".
+        actorProvider.tryResolve()
+                .ifPresent(creator -> careTeamService.enrollOwner(saved, creator.userId()));
+        episodeGraph.loadPatient(saved);
         return saved;
     }
 
@@ -53,7 +66,7 @@ public class EpisodeServiceImpl implements EpisodeService {
 
         episodeMapper.update(data, episode);
         PjiEpisode saved = episodeRepository.save(episode);
-        Hibernate.initialize(saved.getPatient());
+        episodeGraph.loadPatient(saved);
         return saved;
     }
 
@@ -62,7 +75,7 @@ public class EpisodeServiceImpl implements EpisodeService {
     public PjiEpisode getById(Long id) {
         PjiEpisode episode = episodeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
-        Hibernate.initialize(episode.getPatient());
+        episodeGraph.loadPatient(episode);
         return episode;
     }
 
@@ -92,16 +105,7 @@ public class EpisodeServiceImpl implements EpisodeService {
     }
 
     private PaginationResultDTO buildPaginationResult(Page<PjiEpisode> page) {
-        page.getContent().forEach(e -> Hibernate.initialize(e.getPatient()));
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        page.getContent().forEach(episodeGraph::loadPatient);
+        return PaginationResultDTO.of(page);
     }
 }

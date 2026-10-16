@@ -89,17 +89,6 @@ public class RoleServiceImpl implements RoleService {
     @Transactional(readOnly = true)
     public PaginationResultDTO fetchAll(Specification<Role> spec, Pageable pageable) {
         Page<Role> page = this.roleRepository.findAll(spec, pageable);
-
-        PaginationResultDTO rs = new PaginationResultDTO();
-        PaginationResultDTO.Meta mt = new PaginationResultDTO.Meta();
-
-        mt.setPage(page.getNumber() + 1);
-        mt.setPageSize(page.getSize());
-        mt.setPages(page.getTotalPages());
-        mt.setTotal(page.getTotalElements());
-
-        rs.setMeta(mt);
-        rs.setResult(roleMapper.toDetails(page.getContent()));
-        return rs;
+        return PaginationResultDTO.of(page, roleMapper.toDetails(page.getContent()));
     }
 }

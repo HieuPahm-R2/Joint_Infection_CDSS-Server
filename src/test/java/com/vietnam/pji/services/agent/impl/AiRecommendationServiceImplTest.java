@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vietnam.pji.constant.RecommendationScope;
 import com.vietnam.pji.constant.RunStatus;
 import com.vietnam.pji.constant.TriggerType;
+import com.vietnam.pji.dto.response.AiRecommendationRunDetailDTO;
 import com.vietnam.pji.model.agentic.AiRecommendationRun;
 import com.vietnam.pji.model.agentic.CaseClinicalSnapshot;
 import com.vietnam.pji.model.medical.PjiEpisode;
@@ -37,29 +38,27 @@ class AiRecommendationServiceImplTest {
     private final AiRecommendationRunRepository runRepository = mock(AiRecommendationRunRepository.class);
     private final AiRecommendationItemRepository itemRepository = mock(AiRecommendationItemRepository.class);
     private final AiRagCitationRepository citationRepository = mock(AiRagCitationRepository.class);
-    private final RuleBasedDiagnosticResultRepository diagnosticRepository = mock(RuleBasedDiagnosticResultRepository.class);
     private final EpisodeSnapshotAssemblerService snapshotAssembler = mock(EpisodeSnapshotAssemblerService.class);
     private final AiServiceClient aiServiceClient = mock(AiServiceClient.class);
     private final PjiDiagnosticRuleEngine ruleEngine = mock(PjiDiagnosticRuleEngine.class);
     private final ObjectMapper objectMapper = mock(ObjectMapper.class);
     private final RedisService redisService = mock(RedisService.class);
-    private final AiRecommendationRunMapper runMapper = mock(AiRecommendationRunMapper.class);
     private final RecommendationAccessService accessService = mock(RecommendationAccessService.class);
     private final RecommendationRunCreator runCreator = mock(RecommendationRunCreator.class);
+    private final RecommendationResultWriter resultWriter = mock(RecommendationResultWriter.class);
     private final AiRecommendationServiceImpl service = new AiRecommendationServiceImpl(
             episodeRepository,
             runRepository,
             itemRepository,
             citationRepository,
-            diagnosticRepository,
             snapshotAssembler,
             aiServiceClient,
             ruleEngine,
             objectMapper,
             redisService,
-            runMapper,
             accessService,
-            runCreator);
+            runCreator,
+            resultWriter);
 
     @Test
     void asyncGenerationPersistsTheOutboxJobWithoutPublishingInline() {
@@ -79,6 +78,8 @@ class AiRecommendationServiceImplTest {
         when(ruleEngine.evaluate(snapshot.getSnapshotDataJson())).thenReturn(diagnostic);
         when(runCreator.createAsync(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RecommendationRunCreator.CreatedRecommendationRun(run.getSnapshot(), run));
+        when(resultWriter.toRunDetailDto(any(), any(), any()))
+                .thenReturn(AiRecommendationRunDetailDTO.builder().build());
 
         var result = service.generateRecommendationAsync(
                 7L, TriggerType.MANUAL_GENERATE, RecommendationScope.SURGERY);
@@ -118,6 +119,8 @@ class AiRecommendationServiceImplTest {
         when(runCreator.createAsync(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RecommendationRunCreator.CreatedRecommendationRun(
                         retryRun.getSnapshot(), retryRun));
+        when(resultWriter.toRunDetailDto(any(), any(), any()))
+                .thenReturn(AiRecommendationRunDetailDTO.builder().build());
 
         var result = service.retryRun(11L);
 

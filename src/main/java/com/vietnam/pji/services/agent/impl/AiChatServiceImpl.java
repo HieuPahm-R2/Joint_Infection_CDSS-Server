@@ -116,16 +116,7 @@ public class AiChatServiceImpl implements AiChatService {
         // session đã đóng
         page.getContent().forEach(m -> Hibernate.initialize(m.getSession()));
 
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        return PaginationResultDTO.of(page);
     }
 
     @Override
@@ -147,16 +138,7 @@ public class AiChatServiceImpl implements AiChatService {
                 Hibernate.initialize(s.getCurrentItem());
         });
 
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        return PaginationResultDTO.of(page);
     }
 
     private ChatType parseChatType(String chatType) {

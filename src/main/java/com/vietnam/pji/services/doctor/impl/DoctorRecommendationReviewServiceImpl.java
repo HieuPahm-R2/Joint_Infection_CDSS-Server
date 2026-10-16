@@ -16,10 +16,12 @@ import com.vietnam.pji.repository.DoctorRecommendationReviewRepository;
 import com.vietnam.pji.repository.DoctorFinalDecisionRepository;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
+import com.vietnam.pji.services.auth.ActivePrincipal;
+import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.doctor.DoctorRecommendationReviewService;
 import com.vietnam.pji.services.clinicaldecision.ClinicalDecisionService;
-import com.vietnam.pji.utils.SecurityUtils;
+import com.vietnam.pji.services.episode.EpisodeRecordAccess;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
@@ -41,6 +43,8 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
     private final EpisodeRepository episodeRepository;
     private final UserService userService;
     private final ClinicalDecisionService clinicalDecisionService;
+    private final CurrentActorProvider actorProvider;
+    private final EpisodeRecordAccess recordAccess;
 
     @Override
     @Transactional
@@ -148,51 +152,24 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
             throw new ForbiddenException("AI recommendation run does not belong to this episode");
         }
 
-        String currentEmail = SecurityUtils.getCurrentUserLogin().orElse("");
-        if (isBlank(currentEmail)) {
-            throw new ForbiddenException("You don't have permission to review this treatment plan");
-        }
+        ActivePrincipal principal = actorProvider.require();
 
-        User currentUser = userService.handleGetUserByUsername(currentEmail);
-        if (run.getCreatedByUserId() != null
-                && (currentUser == null || !run.getCreatedByUserId().equals(currentUser.getId()))) {
+        // Run-level ownership: a decision on this run belongs to whoever created it.
+        // This is a professional-lane rule, separate from record access.
+        if (run.getCreatedByUserId() != null && !principal.is(run.getCreatedByUserId())) {
             throw new ForbiddenException("Only the doctor who created this AI run can edit its decision");
         }
         if (run.getCreatedByUserId() == null
-                && !isBlank(run.getCreatedBy())
-                && !sameUser(currentEmail, run.getCreatedBy())) {
+                && run.getCreatedBy() != null && !run.getCreatedBy().isBlank()
+                && !principal.email().trim().equalsIgnoreCase(run.getCreatedBy().trim())) {
             throw new ForbiddenException("Only the doctor who created this AI run can edit its decision");
         }
 
-        if (isAdmin(currentEmail)) {
-            return;
-        }
-
-        String patientCreatedBy = episode.getPatient() != null ? episode.getPatient().getCreatedBy() : null;
-        String episodeCreatedBy = episode.getCreatedBy();
-        String runCreatedBy = run.getCreatedBy();
-        boolean hasOwnerMetadata = !isBlank(patientCreatedBy) || !isBlank(episodeCreatedBy) || !isBlank(runCreatedBy);
-
-        if (hasOwnerMetadata
-                && !sameUser(currentEmail, patientCreatedBy)
-                && !sameUser(currentEmail, episodeCreatedBy)
-                && !sameUser(currentEmail, runCreatedBy)) {
-            throw new ForbiddenException("Only the owner of this medical record can review this treatment plan");
-        }
-    }
-
-    private boolean isAdmin(String email) {
-        User user = userService.handleGetUserByUsername(email);
-        String roleName = user != null && user.getRole() != null ? user.getRole().getName() : "";
-        return "ADMIN".equalsIgnoreCase(roleName) || "SUPER_ADMIN".equalsIgnoreCase(roleName);
-    }
-
-    private boolean sameUser(String currentEmail, String ownerEmail) {
-        return !isBlank(ownerEmail) && currentEmail.trim().equalsIgnoreCase(ownerEmail.trim());
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+        // Record relationship: ownership, care-team membership, or audited
+        // administrator break-glass. Previously this was a second, divergent copy of
+        // the owner/metadata check that allowed everyone through when the creator
+        // metadata was blank.
+        recordAccess.assertCanAccess(principal, episode, run);
     }
 
     @Override
@@ -262,13 +239,10 @@ public class DoctorRecommendationReviewServiceImpl implements DoctorRecommendati
     }
 
     private User currentUser() {
-        String email = SecurityUtils.getCurrentUserLogin()
-                .orElseThrow(() -> new ForbiddenException("Authenticated user required"));
-        User user = userService.handleGetUserByUsername(email);
-        if (user == null || user.getId() == null) {
-            throw new ForbiddenException("Authenticated user required");
-        }
-        return user;
+        // Resolved through the shared provider so the caller's account status and
+        // role state are enforced here too, instead of only where it was remembered.
+        Long userId = actorProvider.require().userId();
+        return userService.handleGetUserById(userId);
     }
 
     private void eagerInit(DoctorRecommendationReview review) {

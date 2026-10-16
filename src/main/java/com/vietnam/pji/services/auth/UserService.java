@@ -24,6 +24,17 @@ public interface UserService {
     // Auth helpers
     User handleGetUserByUsername(String username);
 
+    /**
+     * Look a user up by persisted id.
+     *
+     * <p>
+     * Needed where a principal has already been resolved and validated and the
+     * caller only needs the entity for a relation (for example stamping the author
+     * of a clinical decision), so it does not have to re-derive an email and pay a
+     * second lookup.
+     */
+    User handleGetUserById(Long id);
+
     User fetchWithTokenAndEmail(String token, String email);
 
     void saveRefreshToken(String token, String email);

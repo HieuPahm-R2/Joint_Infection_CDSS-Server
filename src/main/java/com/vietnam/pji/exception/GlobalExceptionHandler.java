@@ -3,8 +3,10 @@ package com.vietnam.pji.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -86,22 +88,26 @@ public class GlobalExceptionHandler {
         errorResponse.setStatus(BAD_REQUEST.value());
         errorResponse.setPath(request.getDescription(false).replace("uri=", ""));
 
-        String message = e.getMessage();
-        if (e instanceof MethodArgumentNotValidException) {
-            int start = message.lastIndexOf("[") + 1;
-            int end = message.lastIndexOf("]") - 1;
-            message = message.substring(start, end);
+        if (e instanceof MethodArgumentNotValidException bindingFailure) {
+            // Report the failed field's own message (@NotBlank, @Size, ...) instead of
+            // parsing Spring's aggregate text, which leaked the internal argument
+            // index and the whole BindingResult into the client payload.
+            String message = bindingFailure.getBindingResult().getFieldErrors().stream()
+                    .map(fieldError -> fieldError.getField() + " " + fieldError.getDefaultMessage())
+                    .findFirst()
+                    .orElse(bindingFailure.getMessage());
             errorResponse.setError("Invalid Payload");
             errorResponse.setMessage(message);
         } else if (e instanceof MissingServletRequestParameterException) {
             errorResponse.setError("Invalid Parameter");
-            errorResponse.setMessage(message);
+            errorResponse.setMessage(e.getMessage());
         } else if (e instanceof ConstraintViolationException) {
             errorResponse.setError("Invalid Parameter");
+            String message = e.getMessage();
             errorResponse.setMessage(message.substring(message.indexOf(" ") + 1));
         } else {
             errorResponse.setError("Invalid Data");
-            errorResponse.setMessage(message);
+            errorResponse.setMessage(e.getMessage());
         }
 
         return errorResponse;
@@ -243,14 +249,14 @@ public class GlobalExceptionHandler {
     })
     public ErrorResponse handleException(Exception e, WebRequest req) {
         log.error("Unhandled exception on {}", req.getDescription(false), e);
-        ErrorResponse errorResponse = new ErrorResponse();
-        errorResponse.setTimestamp(new Date());
-        errorResponse.setPath(req.getDescription(false).replace("uri=", ""));
-        errorResponse.setStatus(INTERNAL_SERVER_ERROR.value());
-        errorResponse.setError(INTERNAL_SERVER_ERROR.getReasonPhrase());
-        errorResponse.setMessage(e.getMessage());
-
-        return errorResponse;
+        // Never echo e.getMessage() for an unmapped throwable: it carries SQL text,
+        // JDBC/JDBC-driver internals, parser context and sometimes credentials. The
+        // full detail stays in the server log above; the client gets a stable message.
+        return errorResponse(
+                INTERNAL_SERVER_ERROR.value(),
+                INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau hoặc liên hệ quản trị viên.",
+                req);
     }
 
     private ErrorResponse errorResponse(int status, String error, String message, WebRequest request) {
@@ -266,6 +272,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = {
             ForbiddenException.class
     })
+    @ResponseStatus(FORBIDDEN)
     public ErrorResponse handleForbiddenException(Exception e, WebRequest req) {
         ErrorResponse errorResponse = new ErrorResponse();
         errorResponse.setTimestamp(new Date());
@@ -275,6 +282,20 @@ public class GlobalExceptionHandler {
         errorResponse.setMessage(e.getMessage());
 
         return errorResponse;
+    }
+
+    /**
+     * Handle the QR upload-session failures the frontend branches on. These two
+     * carry a class-level {@code @ResponseStatus}, but an advice-local
+     * {@code @ExceptionHandler(Exception.class)} outranks that annotation, so
+     * without an explicit handler here they degraded to HTTP 500 and the client
+     * could never see the documented 410 / 401.
+     */
+    @ExceptionHandler({UploadSessionGoneException.class, UploadSessionUnauthorizedException.class})
+    public ResponseEntity<ErrorResponse> handleUploadSessionFailure(Exception e, WebRequest request) {
+        HttpStatus status = e instanceof UploadSessionGoneException ? GONE : UNAUTHORIZED;
+        return ResponseEntity.status(status).body(errorResponse(
+                status.value(), status.getReasonPhrase(), e.getMessage(), request));
     }
 
     /**

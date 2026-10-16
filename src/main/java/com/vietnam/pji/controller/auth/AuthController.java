@@ -390,6 +390,12 @@ public class AuthController {
         }
         this.RedisService.deleteRefreshToken(email);
         this.RedisService.deleteActiveSession(email);
+        // Drop the cached functional permissions with the session. They were valid
+        // for their 10-minute TTL after logout, so a replayed access token would
+        // still have passed the route-permission interceptor had the active-session
+        // check not rejected it first. Revocation should not depend on which guard
+        // happens to run.
+        this.RedisService.evictUserPermissions(email);
         this.userService.saveRefreshToken(null, email);
 
         ResponseCookie removeRefresh = ResponseCookie

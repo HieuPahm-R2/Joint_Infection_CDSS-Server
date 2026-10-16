@@ -7,11 +7,10 @@ import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.model.medical.Surgery;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.SurgeryRepository;
-import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.medical.SurgeryService;
 import com.vietnam.pji.utils.mapper.SurgeryMapper;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ public class SurgeryServiceImpl implements SurgeryService {
     private final SurgeryRepository surgeryRepository;
     private final EpisodeRepository episodeRepository;
     private final SurgeryMapper surgeryMapper;
-    private final RedisService redisService;
+    private final EpisodeGraphLoader episodeGraph;
 
     @Override
     @Transactional
@@ -34,9 +33,8 @@ public class SurgeryServiceImpl implements SurgeryService {
         Surgery surgery = surgeryMapper.toEntity(data);
         surgery.setEpisode(episode);
         Surgery saved = surgeryRepository.save(surgery);
-        redisService.evictSnapshotCache(data.getEpisodeId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(episode.getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -47,9 +45,8 @@ public class SurgeryServiceImpl implements SurgeryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Surgery not found"));
         surgeryMapper.update(data, surgery);
         Surgery saved = surgeryRepository.save(surgery);
-        redisService.evictSnapshotCache(surgery.getEpisode().getId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(surgery.getEpisode().getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -58,8 +55,7 @@ public class SurgeryServiceImpl implements SurgeryService {
     public Surgery getById(Long id) {
         Surgery surgery = surgeryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Surgery not found"));
-        Hibernate.initialize(surgery.getEpisode());
-        Hibernate.initialize(surgery.getEpisode().getPatient());
+        episodeGraph.loadPatient(surgery.getEpisode());
         return surgery;
     }
 
@@ -70,7 +66,7 @@ public class SurgeryServiceImpl implements SurgeryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Surgery not found"));
         Long episodeId = surgery.getEpisode().getId();
         surgeryRepository.deleteById(id);
-        redisService.evictSnapshotCache(episodeId);
+        episodeGraph.evictSnapshot(episodeId);
     }
 
     @Override
@@ -80,19 +76,7 @@ public class SurgeryServiceImpl implements SurgeryService {
             throw new ResourceNotFoundException("Episode not found");
         }
         Page<Surgery> page = surgeryRepository.findByEpisodeId(episodeId, pageable);
-        page.getContent().forEach(s -> {
-            Hibernate.initialize(s.getEpisode());
-            Hibernate.initialize(s.getEpisode().getPatient());
-        });
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        page.getContent().forEach(s -> episodeGraph.loadPatient(s.getEpisode()));
+        return PaginationResultDTO.of(page);
     }
 }

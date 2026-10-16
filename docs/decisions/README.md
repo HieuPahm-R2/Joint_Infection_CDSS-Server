@@ -12,7 +12,11 @@ the active execution plan and do not require a separate decision.
 - [0004 Remove Recommendation Warnings](0004-remove-recommendation-warnings.md)
 - [0005 Run-scoped Clinical Decisions](0005-run-scoped-clinical-decisions.md)
 - [0006 Role-scoped Treatment Recommendations](0006-role-scoped-treatment-recommendations.md)
+- [0007 Retire Legacy Combined Recommendation Scope](0007-retire-legacy-combined-recommendation-scope.md)
 - [0007 Transactional Recommendation Outbox](0007-transactional-recommendation-outbox.md)
+- [0008 Deny-by-default Functional and Clinical-record Authorization](0008-general-authorization-policy.md)
+- [0009 Episode Care Team as the Record-access Grant](0009-episode-care-team-record-access.md)
+- [0010 Admission-rooted Medical Record Model and Vocabulary](0010-admission-rooted-medical-record-model.md)
 
 An installed consumer begins with no fabricated decisions. Add local decision
 documents here as real choices are accepted, then index them in this file.

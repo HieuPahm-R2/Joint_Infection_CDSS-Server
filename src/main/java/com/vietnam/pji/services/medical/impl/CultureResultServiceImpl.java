@@ -7,11 +7,10 @@ import com.vietnam.pji.model.medical.CultureResult;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.medical.CultureResultRepository;
-import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.medical.CultureResultService;
 import com.vietnam.pji.utils.mapper.CultureResultMapper;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,7 @@ public class CultureResultServiceImpl implements CultureResultService {
     private final CultureResultRepository cultureResultRepository;
     private final EpisodeRepository episodeRepository;
     private final CultureResultMapper cultureResultMapper;
-    private final RedisService redisService;
+    private final EpisodeGraphLoader episodeGraph;
 
     @Override
     @Transactional
@@ -34,9 +33,8 @@ public class CultureResultServiceImpl implements CultureResultService {
         CultureResult cultureResult = cultureResultMapper.toEntity(data);
         cultureResult.setEpisode(episode);
         CultureResult saved = cultureResultRepository.save(cultureResult);
-        redisService.evictSnapshotCache(data.getEpisodeId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(episode.getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -47,9 +45,8 @@ public class CultureResultServiceImpl implements CultureResultService {
                 .orElseThrow(() -> new ResourceNotFoundException("Culture result not found"));
         cultureResultMapper.update(data, cultureResult);
         CultureResult saved = cultureResultRepository.save(cultureResult);
-        redisService.evictSnapshotCache(cultureResult.getEpisode().getId());
-        Hibernate.initialize(saved.getEpisode());
-        Hibernate.initialize(saved.getEpisode().getPatient());
+        episodeGraph.evictSnapshot(cultureResult.getEpisode().getId());
+        episodeGraph.loadPatient(saved.getEpisode());
         return saved;
     }
 
@@ -58,8 +55,7 @@ public class CultureResultServiceImpl implements CultureResultService {
     public CultureResult getById(Long id) {
         CultureResult cultureResult = cultureResultRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Culture result not found"));
-        Hibernate.initialize(cultureResult.getEpisode());
-        Hibernate.initialize(cultureResult.getEpisode().getPatient());
+        episodeGraph.loadPatient(cultureResult.getEpisode());
         return cultureResult;
     }
 
@@ -70,7 +66,7 @@ public class CultureResultServiceImpl implements CultureResultService {
                 .orElseThrow(() -> new ResourceNotFoundException("Culture result not found"));
         Long episodeId = cultureResult.getEpisode().getId();
         cultureResultRepository.deleteById(id);
-        redisService.evictSnapshotCache(episodeId);
+        episodeGraph.evictSnapshot(episodeId);
     }
 
     @Override
@@ -80,19 +76,7 @@ public class CultureResultServiceImpl implements CultureResultService {
             throw new ResourceNotFoundException("Episode not found");
         }
         Page<CultureResult> page = cultureResultRepository.findByEpisodeId(episodeId, pageable);
-        page.getContent().forEach(r -> {
-            Hibernate.initialize(r.getEpisode());
-            Hibernate.initialize(r.getEpisode().getPatient());
-        });
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        page.getContent().forEach(r -> episodeGraph.loadPatient(r.getEpisode()));
+        return PaginationResultDTO.of(page);
     }
 }

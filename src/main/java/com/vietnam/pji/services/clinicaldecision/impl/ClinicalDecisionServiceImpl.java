@@ -28,9 +28,10 @@ import com.vietnam.pji.repository.PharmacistFinalDecisionRepository;
 import com.vietnam.pji.repository.RecommendationFinalSelectionRepository;
 import com.vietnam.pji.repository.ai.AiRecommendationRunRepository;
 import com.vietnam.pji.services.agent.RecommendationAccessService;
+import com.vietnam.pji.services.auth.ActivePrincipal;
+import com.vietnam.pji.services.auth.CurrentActorProvider;
 import com.vietnam.pji.services.auth.UserService;
 import com.vietnam.pji.services.clinicaldecision.ClinicalDecisionService;
-import com.vietnam.pji.utils.SecurityUtils;
 import com.vietnam.pji.utils.mapper.AiRecommendationRunMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -58,6 +59,7 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
     private final RecommendationFinalSelectionRepository finalSelectionRepository;
     private final RecommendationAccessService recommendationAccessService;
     private final UserService userService;
+    private final CurrentActorProvider actorProvider;
     private final AiRecommendationRunMapper runMapper;
 
     @Override
@@ -82,7 +84,7 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         Long finalPharmacistRunId = finalRunIds.get(RecommendationScope.ANTIBIOTIC);
         Set<Long> selectedRunIds = new HashSet<>(finalRunIds.values());
         selectedRunIds.remove(null);
-        User currentUser = currentUser();
+        ActivePrincipal principal = actorProvider.require();
 
         List<RunDecision> rows = runs.stream()
                 .map(run -> toRunDecision(
@@ -90,7 +92,7 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                         doctorByRun.get(run.getId()),
                         pharmacistByRun.get(run.getId()),
                         selectedRunIds,
-                        currentUser))
+                        principal))
                 .toList();
 
         return ClinicalDecisionWorkspaceDTO.builder()
@@ -113,17 +115,19 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                 doctorDecisionRepository.findByRunId(runId).orElse(null),
                 pharmacistDecisionRepository.findByRunId(runId).orElse(null),
                 selectedRunIds,
-                currentUser());
+                actorProvider.require());
     }
 
     @Override
     @Transactional
     public RunDecision saveDoctorDecision(Long runId, DoctorClinicalDecisionRequestDTO request) {
         AiRecommendationRun run = findRunForUpdate(runId);
-        User currentUser = requireRole(currentUser(), "DOCTOR", "ADMIN", "SUPER_ADMIN");
+        ActivePrincipal principal = actorProvider.require();
+        requireDoctorLane(principal);
         requireReviewable(run);
         requireDoctorScope(run);
-        requireDoctorRunOwner(run, currentUser);
+        requireDoctorRunOwner(run, principal);
+        User currentUser = currentUser();
 
         DoctorFinalDecision decision = doctorDecisionRepository.findByRunId(runId).orElse(null);
         if (decision == null) {
@@ -143,7 +147,7 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                     .surgeryPlanJson(request.getSurgeryPlanJson())
                     .build();
         } else {
-            requireDraftOwner(decision.getAuthor(), decision.getStatus(), currentUser, request.getRevision(), decision.getVersion());
+            requireDraftOwner(decision.getAuthor(), decision.getStatus(), principal, request.getRevision(), decision.getVersion());
             decision.setDiagnosisJson(request.getDiagnosisJson());
             decision.setSurgeryPlanJson(request.getSurgeryPlanJson());
         }
@@ -155,35 +159,39 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         review.setModificationJson(mergeSurgery(review.getModificationJson(), saved.getSurgeryPlanJson()));
         review.setReviewStatus(ReviewStatus.SAVED_DRAFT);
         reviewRepository.save(review);
-        return currentRunDecision(run, currentUser);
+        return currentRunDecision(run, principal);
     }
 
     @Override
     @Transactional
     public RunDecision signDoctorDecision(Long runId, ClinicalDecisionRevisionRequestDTO request) {
         AiRecommendationRun run = findRunForUpdate(runId);
-        User currentUser = requireRole(currentUser(), "DOCTOR", "ADMIN", "SUPER_ADMIN");
+        ActivePrincipal principal = actorProvider.require();
+        requireDoctorLane(principal);
         requireReviewable(run);
         requireDoctorScope(run);
+        User currentUser = currentUser();
         DoctorFinalDecision decision = doctorDecisionRepository.findByRunId(runId)
                 .orElseThrow(() -> new InvalidDataException("Doctor decision must be saved before signing"));
-        requireDraftOwner(decision.getAuthor(), decision.getStatus(), currentUser, request.getRevision(), decision.getVersion());
+        requireDraftOwner(decision.getAuthor(), decision.getStatus(), principal, request.getRevision(), decision.getVersion());
         decision.setStatus(ClinicalDecisionStatus.SIGNED);
         decision.setSignedAt(Instant.now());
         doctorDecisionRepository.saveAndFlush(decision);
         decision.getReview().setReviewStatus(ReviewStatus.ACCEPTED);
         reviewRepository.save(decision.getReview());
-        return currentRunDecision(run, currentUser);
+        return currentRunDecision(run, principal);
     }
 
     @Override
     @Transactional
     public RunDecision savePharmacistDecision(Long runId, PharmacistClinicalDecisionRequestDTO request) {
         AiRecommendationRun run = findRunForUpdate(runId);
-        User currentUser = requireRole(currentUser(), "PHARMACIST", "ADMIN", "SUPER_ADMIN");
+        ActivePrincipal principal = actorProvider.require();
+        requirePharmacistLane(principal);
         requireReviewable(run);
         requirePharmacistScope(run);
-        requirePharmacistRunOwner(run, currentUser);
+        requirePharmacistRunOwner(run, principal);
+        User currentUser = currentUser();
 
         PharmacistFinalDecision decision = pharmacistDecisionRepository.findByRunId(runId).orElse(null);
         if (decision == null) {
@@ -194,31 +202,33 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                     .status(ClinicalDecisionStatus.DRAFT)
                     .build();
         } else {
-            requireDraftOwner(decision.getAuthor(), decision.getStatus(), currentUser, request.getRevision(), decision.getVersion());
+            requireDraftOwner(decision.getAuthor(), decision.getStatus(), principal, request.getRevision(), decision.getVersion());
         }
         decision.setSystemicAntibioticPlanJson(request.getSystemicAntibioticPlanJson());
         decision.setLocalAntibioticPlanJson(request.getLocalAntibioticPlanJson());
         decision.setCarePlanJson(request.getCarePlanJson());
         decision.setNotes(request.getNotes());
         pharmacistDecisionRepository.saveAndFlush(decision);
-        return currentRunDecision(run, currentUser);
+        return currentRunDecision(run, principal);
     }
 
     @Override
     @Transactional
     public RunDecision signPharmacistDecision(Long runId, ClinicalDecisionRevisionRequestDTO request) {
         AiRecommendationRun run = findRunForUpdate(runId);
-        User currentUser = requireRole(currentUser(), "PHARMACIST", "ADMIN", "SUPER_ADMIN");
+        ActivePrincipal principal = actorProvider.require();
+        requirePharmacistLane(principal);
         requireReviewable(run);
         requirePharmacistScope(run);
-        requirePharmacistRunOwner(run, currentUser);
+        requirePharmacistRunOwner(run, principal);
+        User currentUser = currentUser();
         PharmacistFinalDecision decision = pharmacistDecisionRepository.findByRunId(runId)
                 .orElseThrow(() -> new InvalidDataException("Pharmacist decision must be saved before signing"));
-        requireDraftOwner(decision.getAuthor(), decision.getStatus(), currentUser, request.getRevision(), decision.getVersion());
+        requireDraftOwner(decision.getAuthor(), decision.getStatus(), principal, request.getRevision(), decision.getVersion());
         decision.setStatus(ClinicalDecisionStatus.SIGNED);
         decision.setSignedAt(Instant.now());
         pharmacistDecisionRepository.saveAndFlush(decision);
-        return currentRunDecision(run, currentUser);
+        return currentRunDecision(run, principal);
     }
 
     @Override
@@ -230,10 +240,11 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         }
         requireReviewable(run);
         RecommendationScope scope = scopeOf(run);
+        ActivePrincipal principal = actorProvider.require();
         User currentUser = currentUser();
         DoctorFinalDecision doctor = doctorDecisionRepository.findByRunId(runId).orElse(null);
         PharmacistFinalDecision pharmacist = pharmacistDecisionRepository.findByRunId(runId).orElse(null);
-        requireFinalSelectionOwner(scope, doctor, pharmacist, currentUser);
+        requireFinalSelectionOwner(scope, doctor, pharmacist, principal);
 
         RecommendationFinalSelection selection = finalSelectionRepository
                 .findByEpisodeIdAndRecommendationScope(episodeId, scope)
@@ -254,16 +265,16 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
                 reviewRepository.save(review);
             });
         }
-        return toRunDecision(run, doctor, pharmacist, Set.of(runId), currentUser);
+        return toRunDecision(run, doctor, pharmacist, Set.of(runId), principal);
     }
 
-    private RunDecision currentRunDecision(AiRecommendationRun run, User currentUser) {
+    private RunDecision currentRunDecision(AiRecommendationRun run, ActivePrincipal principal) {
         return toRunDecision(
                 run,
                 doctorDecisionRepository.findByRunId(run.getId()).orElse(null),
                 pharmacistDecisionRepository.findByRunId(run.getId()).orElse(null),
                 selectedRunIds(run.getEpisode().getId()),
-                currentUser);
+                principal);
     }
 
     private RunDecision toRunDecision(
@@ -271,28 +282,32 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
             DoctorFinalDecision doctor,
             PharmacistFinalDecision pharmacist,
             Set<Long> finalRunIds,
-            User currentUser) {
+            ActivePrincipal principal) {
         RecommendationScope scope = scopeOf(run);
         boolean doctorSigned = doctor != null && doctor.getStatus() == ClinicalDecisionStatus.SIGNED;
         boolean pharmacistSigned = pharmacist != null && pharmacist.getStatus() == ClinicalDecisionStatus.SIGNED;
         boolean doctorLane = scope.supportsDoctorDecision();
         boolean pharmacistLane = scope.supportsPharmacistDecision();
         boolean canEditDoctor = doctorLane
-                && isRole(currentUser, "DOCTOR", "ADMIN", "SUPER_ADMIN")
-                && runOwnedBy(run, currentUser)
-                && (doctor == null || (doctor.getStatus() == ClinicalDecisionStatus.DRAFT && sameUser(doctor.getAuthor(), currentUser)));
+                && (isDoctorLane(principal) || isBreakGlassAdmin(principal))
+                && runOwnedBy(run, principal)
+                && (doctor == null || (doctor.getStatus() == ClinicalDecisionStatus.DRAFT
+                        && principal.is(doctor.getAuthor() == null ? null : doctor.getAuthor().getId())));
         boolean canEditPharmacist = pharmacistLane
-                && isRole(currentUser, "PHARMACIST", "ADMIN", "SUPER_ADMIN")
-                && runOwnedBy(run, currentUser)
+                && (isPharmacistLane(principal) || isBreakGlassAdmin(principal))
+                && runOwnedBy(run, principal)
                 && (pharmacist == null
-                    || (pharmacist.getStatus() == ClinicalDecisionStatus.DRAFT && sameUser(pharmacist.getAuthor(), currentUser)));
+                    || (pharmacist.getStatus() == ClinicalDecisionStatus.DRAFT
+                            && principal.is(pharmacist.getAuthor() == null ? null : pharmacist.getAuthor().getId())));
         boolean eligibleForFinal = switch (scope) {
             case SURGERY -> doctorSigned;
             case ANTIBIOTIC -> pharmacistSigned;
         };
         boolean canSelectFinal = switch (scope) {
-            case SURGERY -> doctorSigned && doctor != null && sameUser(doctor.getAuthor(), currentUser);
-            case ANTIBIOTIC -> pharmacistSigned && pharmacist != null && sameUser(pharmacist.getAuthor(), currentUser);
+            case SURGERY -> doctorSigned && doctor != null
+                    && principal.is(doctor.getAuthor() == null ? null : doctor.getAuthor().getId());
+            case ANTIBIOTIC -> pharmacistSigned && pharmacist != null
+                    && principal.is(pharmacist.getAuthor() == null ? null : pharmacist.getAuthor().getId());
         };
         return RunDecision.builder()
                 .run(runMapper.toDto(run))
@@ -403,81 +418,90 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
             RecommendationScope scope,
             DoctorFinalDecision doctor,
             PharmacistFinalDecision pharmacist,
-            User currentUser) {
+            ActivePrincipal principal) {
         switch (scope) {
             case SURGERY -> {
-                requireRole(currentUser, "DOCTOR", "ADMIN", "SUPER_ADMIN");
+                requireDoctorLane(principal);
                 if (doctor == null || doctor.getStatus() != ClinicalDecisionStatus.SIGNED) {
                     throw new InvalidDataException("A signed doctor decision is required");
                 }
-                if (!sameUser(doctor.getAuthor(), currentUser)) {
+                if (!principal.is(doctor.getAuthor() == null ? null : doctor.getAuthor().getId())) {
                     throw new ForbiddenException("Only the doctor who owns this decision can select it");
                 }
             }
             case ANTIBIOTIC -> {
-                requireRole(currentUser, "PHARMACIST", "ADMIN", "SUPER_ADMIN");
+                requirePharmacistLane(principal);
                 if (pharmacist == null || pharmacist.getStatus() != ClinicalDecisionStatus.SIGNED) {
                     throw new InvalidDataException("A signed pharmacist decision is required");
                 }
-                if (!sameUser(pharmacist.getAuthor(), currentUser)) {
+                if (!principal.is(pharmacist.getAuthor() == null ? null : pharmacist.getAuthor().getId())) {
                     throw new ForbiddenException("Only the pharmacist who owns this decision can select it");
                 }
             }
         }
     }
 
+    /**
+     * Resolves the caller to the entity the decision relations need, through the
+     * shared provider so account status and role state are enforced here too.
+     */
     private User currentUser() {
-        String email = SecurityUtils.getCurrentUserLogin()
-                .orElseThrow(() -> new ForbiddenException("Authenticated user required"));
-        User user = userService.handleGetUserByUsername(email);
-        if (user == null || user.getId() == null) {
-            throw new ForbiddenException("Authenticated user required");
-        }
-        return user;
+        return userService.handleGetUserById(actorProvider.require().userId());
     }
 
-    private User requireRole(User user, String... roles) {
-        if (!isRole(user, roles)) {
+    private boolean isDoctorLane(ActivePrincipal principal) {
+        return principal.hasRole("DOCTOR");
+    }
+
+    private boolean isPharmacistLane(ActivePrincipal principal) {
+        return principal.hasRole("PHARMACIST");
+    }
+
+    private boolean isBreakGlassAdmin(ActivePrincipal principal) {
+        return principal.admin();
+    }
+
+    /** The doctor lane, with the administrator lane as break-glass. */
+    private void requireDoctorLane(ActivePrincipal principal) {
+        if (!isDoctorLane(principal) && !isBreakGlassAdmin(principal)) {
             throw new ForbiddenException("Your role cannot update this clinical decision");
         }
-        return user;
     }
 
-    private boolean isRole(User user, String... roles) {
-        String currentRole = user != null && user.getRole() != null ? user.getRole().getName() : "";
-        for (String role : roles) {
-            if (role.equalsIgnoreCase(currentRole)) return true;
+    /** The pharmacist lane, with the administrator lane as break-glass. */
+    private void requirePharmacistLane(ActivePrincipal principal) {
+        if (!isPharmacistLane(principal) && !isBreakGlassAdmin(principal)) {
+            throw new ForbiddenException("Your role cannot update this clinical decision");
         }
-        return false;
     }
 
-    private void requireDoctorRunOwner(AiRecommendationRun run, User currentUser) {
-        if (!runOwnedBy(run, currentUser)) {
+    private void requireDoctorRunOwner(AiRecommendationRun run, ActivePrincipal principal) {
+        if (!runOwnedBy(run, principal)) {
             throw new ForbiddenException("Only the doctor who created this AI run can edit its doctor decision");
         }
     }
 
-    private void requirePharmacistRunOwner(AiRecommendationRun run, User currentUser) {
-        if (!runOwnedBy(run, currentUser)) {
+    private void requirePharmacistRunOwner(AiRecommendationRun run, ActivePrincipal principal) {
+        if (!runOwnedBy(run, principal)) {
             throw new ForbiddenException("Only the pharmacist who created this AI run can edit its decision");
         }
     }
 
-    private boolean runOwnedBy(AiRecommendationRun run, User user) {
+    private boolean runOwnedBy(AiRecommendationRun run, ActivePrincipal principal) {
         if (run.getCreatedByUserId() != null) {
-            return run.getCreatedByUserId().equals(user.getId());
+            return principal.is(run.getCreatedByUserId());
         }
-        return run.getCreatedBy() != null && user.getEmail() != null
-                && run.getCreatedBy().trim().equalsIgnoreCase(user.getEmail().trim());
+        return run.getCreatedBy() != null && principal.email() != null
+                && run.getCreatedBy().trim().equalsIgnoreCase(principal.email().trim());
     }
 
     private void requireDraftOwner(
             User author,
             ClinicalDecisionStatus status,
-            User currentUser,
+            ActivePrincipal principal,
             Long requestedRevision,
             Long currentRevision) {
-        if (!sameUser(author, currentUser)) {
+        if (!principal.is(author == null ? null : author.getId())) {
             throw new ForbiddenException("This clinical decision belongs to another user");
         }
         if (status == ClinicalDecisionStatus.SIGNED) {
@@ -492,10 +516,6 @@ public class ClinicalDecisionServiceImpl implements ClinicalDecisionService {
         if (revision == null || revision != 0L) {
             throw new InvalidDataException("A new clinical decision must start at revision 0");
         }
-    }
-
-    private boolean sameUser(User left, User right) {
-        return left != null && right != null && left.getId() != null && left.getId().equals(right.getId());
     }
 
     private Map<String, Object> mergeSurgery(Map<String, Object> source, Map<String, Object> surgery) {

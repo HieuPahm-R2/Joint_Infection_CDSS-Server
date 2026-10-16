@@ -23,9 +23,9 @@ public class RateLimitProperties {
     public static class Rule {
         private String name;
         private List<String> paths = new ArrayList<>();
-        private long capacity;
+        private long capacity; // sức chứa bucket
         private long refillTokens;
         private Duration refillPeriod;
-        private boolean perUser = true;
+        private boolean perUser = true; // giới hạn theo người dùng
     }
 }

@@ -99,15 +99,6 @@ public class SensitivityResultServiceImpl implements SensitivityResultService {
             Hibernate.initialize(r.getCulture().getEpisode());
             Hibernate.initialize(r.getCulture().getEpisode().getPatient());
         });
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        return PaginationResultDTO.of(page);
     }
 }

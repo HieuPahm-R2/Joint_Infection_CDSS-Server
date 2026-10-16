@@ -55,15 +55,6 @@ public class PatientServiceImpl implements PatientService {
     @Override
     public PaginationResultDTO getAll(Specification<Patient> spec, Pageable pageable) {
         Page<Patient> page = patientRepository.findAll(spec, pageable);
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(page.getContent());
-        return result;
+        return PaginationResultDTO.of(page);
     }
 }

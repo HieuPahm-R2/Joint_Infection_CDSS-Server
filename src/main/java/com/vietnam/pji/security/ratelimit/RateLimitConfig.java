@@ -61,7 +61,8 @@ public class RateLimitConfig {
                 redisTimeoutMs,
                 password,
                 redisDatabase);
-
+        // Tạo ProxyManager<String> của Bucket4j trên Redis. Bộ đếm vì thế có thể được
+        // chia sẻ giữa nhiều instance backend.
         return JedisBasedProxyManager.builderFor(jedisPool)
                 .withKeyMapper(Mapper.STRING)
                 .build();

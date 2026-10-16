@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
-public class RecommendationJobOutboxDispatcher {
+public class RecommendationJobOutboxDispatcher { // lấy job đang chờ trong bảng outbox và gửi sang RabbitMQ
 
     private static final int MAX_ERROR_LENGTH = 2000;
 
@@ -47,6 +47,7 @@ public class RecommendationJobOutboxDispatcher {
      */
     @Transactional
     public boolean dispatchNext() {
+        // các instance ứng dụng có thể lấy các job khác nhau mà không chờ nhau.
         RecommendationJobOutbox outbox = outboxRepository.findNextReadyForUpdate().orElse(null);
         if (outbox == null) {
             return false;
@@ -59,6 +60,8 @@ public class RecommendationJobOutboxDispatcher {
         }
 
         try {
+            // chuyển payloadJson thành RabbitMQMessage, gọi publisher gửi
+            // message, rồi xóa dòng outbox nếu gửi thành công.
             RabbitMQRecommendationMessage message = objectMapper.readValue(
                     outbox.getPayloadJson(), RabbitMQRecommendationMessage.class);
             rabbitMQPublisher.publishRecommendationJob(message);

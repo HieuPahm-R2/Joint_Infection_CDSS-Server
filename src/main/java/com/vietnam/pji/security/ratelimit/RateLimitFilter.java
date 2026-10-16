@@ -55,8 +55,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain chain) throws ServletException, IOException {
+            HttpServletResponse response,
+            FilterChain chain) throws ServletException, IOException {
         RateLimitProperties.Rule rule = matchRule(request.getRequestURI());
         if (rule == null) {
             chain.doFilter(request, response);
@@ -69,13 +69,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
             BucketProxy bucket = rateLimitProxyManager.builder().build(key, () -> bucketConfig(rule));
             probe = bucket.tryConsumeAndReturnRemaining(1);
         } catch (RuntimeException ex) {
-            // Fail open: if Redis is unreachable, do not block traffic — log once and pass through.
+            // Fail open: if Redis is unreachable, do not block traffic — log once and pass
+            // through.
             log.warn("Rate-limit backend failure (fail-open): rule={} key={} err={}",
                     rule.getName(), key, ex.toString());
             chain.doFilter(request, response);
             return;
         }
-
+        // Nếu còn token, filter cho request đi tiếp và trả các header
         response.setHeader("X-RateLimit-Limit", String.valueOf(rule.getCapacity()));
         response.setHeader("X-RateLimit-Remaining",
                 String.valueOf(Math.max(probe.getRemainingTokens(), 0L)));
@@ -99,6 +100,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         body.setMessage("Quá nhiều yêu cầu. Vui lòng thử lại sau " + retryAfterSec + " giây.");
         objectMapper.writeValue(response.getWriter(), body);
 
+        // Nếu Redis gặp lỗi runtime, filter ghi log rồi cho request đi tiếp (fail open)
+        // để lỗi Redis không chặn toàn bộ traffic
         log.warn("Rate limit hit: rule={} key={} retryAfter={}s path={}",
                 rule.getName(), key, retryAfterSec, request.getRequestURI());
     }
@@ -122,10 +125,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return BucketConfiguration.builder().addLimit(bw).build();
     }
 
+    // tạo khóa bucket theo tên quy tắc và đối tượng bị giới hạn.
     private String compositeKey(RateLimitProperties.Rule rule, HttpServletRequest req) {
         return "rl:" + rule.getName() + ":" + principalKey(rule, req);
     }
 
+    // dùng JWT subject hoặc username khi perUser: true và người gọi đã login. Nếu
+    // không lấy được người dùng, hoặc perUser: false, nó dùng IP.
     private String principalKey(RateLimitProperties.Rule rule, HttpServletRequest req) {
         if (rule.isPerUser()) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();

@@ -8,7 +8,7 @@ import com.vietnam.pji.model.medical.ImageResult;
 import com.vietnam.pji.model.medical.PjiEpisode;
 import com.vietnam.pji.repository.EpisodeRepository;
 import com.vietnam.pji.repository.ImageResultRepository;
-import com.vietnam.pji.services.feat.RedisService;
+import com.vietnam.pji.services.episode.EpisodeGraphLoader;
 import com.vietnam.pji.services.ocr.ImageResultService;
 import com.vietnam.pji.utils.MinioChannel;
 import com.vietnam.pji.utils.mapper.ImageResultMapper;
@@ -27,27 +27,29 @@ public class ImageResultServiceImpl implements ImageResultService {
     private final ImageResultRepository imageResultRepository;
     private final EpisodeRepository episodeRepository;
     private final ImageResultMapper imageResultMapper;
-    private final RedisService redisService;
+    private final EpisodeGraphLoader episodeGraph;
     private final MinioChannel minioChannel;
 
     @Override
+    @Transactional
     public ImageResultResponseDTO create(ImageResultRequestDTO data) {
         PjiEpisode episode = episodeRepository.findById(data.getEpisodeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Episode not found"));
         ImageResult imageResult = imageResultMapper.toEntity(data);
         imageResult.setEpisode(episode);
         ImageResult saved = imageResultRepository.save(imageResult);
-        redisService.evictSnapshotCache(data.getEpisodeId());
+        episodeGraph.evictSnapshot(episode.getId());
         return toResponseWithFreshUrl(saved);
     }
 
     @Override
+    @Transactional
     public ImageResultResponseDTO update(Long id, ImageResultRequestDTO data) {
         ImageResult imageResult = imageResultRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Image result not found"));
         imageResultMapper.update(data, imageResult);
         ImageResult saved = imageResultRepository.save(imageResult);
-        redisService.evictSnapshotCache(imageResult.getEpisode().getId());
+        episodeGraph.evictSnapshot(imageResult.getEpisode().getId());
         return toResponseWithFreshUrl(saved);
     }
 
@@ -65,7 +67,7 @@ public class ImageResultServiceImpl implements ImageResultService {
                 .orElseThrow(() -> new ResourceNotFoundException("Image result not found"));
         Long episodeId = imageResult.getEpisode().getId();
         imageResultRepository.deleteById(id);
-        redisService.evictSnapshotCache(episodeId);
+        episodeGraph.evictSnapshot(episodeId);
     }
 
     @Override
@@ -74,20 +76,10 @@ public class ImageResultServiceImpl implements ImageResultService {
             throw new ResourceNotFoundException("Episode not found");
         }
         Page<ImageResult> page = imageResultRepository.findByEpisodeId(episodeId, pageable);
-        PaginationResultDTO.Meta meta = new PaginationResultDTO.Meta();
-        meta.setPage(page.getNumber() + 1);
-        meta.setPageSize(page.getSize());
-        meta.setPages(page.getTotalPages());
-        meta.setTotal(page.getTotalElements());
-
         List<ImageResultResponseDTO> items = page.getContent().stream()
                 .map(this::toResponseWithFreshUrl)
                 .toList();
-
-        PaginationResultDTO result = new PaginationResultDTO();
-        result.setMeta(meta);
-        result.setResult(items);
-        return result;
+        return PaginationResultDTO.of(page, items);
     }
 
     /**

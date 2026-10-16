@@ -17,9 +17,9 @@ public class AsyncConfig {
     @Bean("thinkingRelayExecutor")
     public Executor thinkingRelayExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
+        executor.setCorePoolSize(4); // tối đa 4 luồng thường trực khi có việc.
         executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(50);
+        executor.setQueueCapacity(50); // tác vụ sẽ chờ trong hàng đợi.
         executor.setThreadNamePrefix("thinking-relay-");
         executor.setKeepAliveSeconds(60);
         executor.initialize();

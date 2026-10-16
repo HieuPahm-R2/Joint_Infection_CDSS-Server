@@ -48,10 +48,8 @@ import lombok.extern.slf4j.Slf4j;
  * ADMIN role exists by the time we try to add to it.
  */
 @Component
-// Run BEFORE DatabaseInitializer (which has implicit LOWEST_PRECEDENCE). Fresh
-// DB path: PermissionSyncer inserts every declared endpoint with no ADMIN role
-// yet (logs and skips the grant step), then DatabaseInitializer creates ADMIN
-// via permissionRepository.findAll() — picking up everything we just wrote.
+// Run BEFORE DatabaseInitializer. Fresh DB path: PermissionSyncer inserts every
+// declared endpoint with no ADMIN role yet (logs and skips the grant step
 // Existing DB path: PermissionSyncer diffs + grants; DatabaseInitializer skips.
 @Order(1)
 @RequiredArgsConstructor
