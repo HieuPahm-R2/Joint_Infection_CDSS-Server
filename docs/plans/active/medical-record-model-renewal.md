@@ -230,6 +230,11 @@ Why phase 2 is contract-neutral, verified rather than assumed:
 - [x] Confirm a clean working tree in `Backend_Server` (commit `34d9c21`).
 - [x] Phase 2: Java-type rename, contract-neutral, with impact analysis.
       Committed as `dec14a0`.
+- [x] Rehearse phase 4 (schema rename) end to end on a scratch copy and a
+      throwaway database, including catalog verification and a green suite
+      against the renamed schema.
+- [ ] Clear the two phase 4 gates: external consumers, and the ordering plus
+      `pji_dev` version.
 - [ ] Phase 3: route rename plus frontend contract fixes.
 - [ ] Phase 4: schema rename with compatibility views.
 - [ ] Phase 5: aggregate separation.
@@ -433,6 +438,53 @@ Two supporting counts:
   `ImagingStudy` and `Surgery` belongs with the aggregate separation.
 - Entity-level JPA cascades: exactly one, `DoctorRecommendationReview.doctorFinalDecision`.
   Child cleanup is otherwise entirely a database concern.
+
+### Phase 4 rehearsal (2026-10-16)
+
+Rehearsed on a scratch copy plus a throwaway database, so neither the repository
+nor `pji_dev` changed.
+
+Surface, read from the live v36 catalog rather than from recollection: **8
+tables** (`pji_episodes` → `admissions`, `case_clinical_snapshots` →
+`clinical_snapshots`, `clinical_records` → `clinical_assessments`, `lab_results`
+→ `lab_reports`, `culture_results` → `specimen_cultures`, `sensitivity_results` →
+`antibiotic_susceptibilities`, `image_results` → `imaging_studies`,
+`episode_care_team` → `admission_care_team`), **16 columns** (`episode_id` →
+`admission_id` on fourteen tables, `medical_record_code` → `record_number`,
+`culture_id` → `specimen_culture_id`), **8 sequences**, **34 indexes** and **19
+foreign-key and check constraints**.
+
+The migration is generated from the catalog by a query instead of being written
+by hand, so the object list is evidence rather than recollection. It is 85
+statements.
+
+Two things the rehearsal proved that planning would have missed:
+
+- **Statement order is load-bearing.** Column, constraint and index statements
+  are all addressed by their current table name, so they must run *before* the
+  table renames. Generating the tables first fails on the first column statement.
+- **Zero old names survive.** After applying, a catalog query for tables,
+  columns, constraints, indexes and sequences matching the old vocabulary returns
+  **0**, and all eight renamed tables are present.
+
+Proof: retarget the JPA annotations — replacing only double-quoted literals, so
+camelCase field names such as `episodeId` stay put, because those are phase 3's
+axis — then run the suite against the renamed schema. Result: `MAVEN_EXIT=0`,
+`138 tests / 0 failures / 0 errors`, `BUILD SUCCESS`, with `contextLoads` passing
+under `ddl-auto: validate` against the renamed tables and columns.
+
+Artifacts are held outside the repository until the gates below are cleared:
+`.tmp/V37__rename_medical_record_objects.sql`, `.tmp/phase4-generate.sql`,
+`.tmp/phase4-verify.sql`, `.tmp/phase4-annotations.ps1`.
+
+Two gates stand before this is executed for real:
+
+1. **External consumers.** The database assessment asks for confirmation that no
+   SQL, BI or integration consumer reads these table and column names before a
+   schema rename. That confirmation does not exist yet.
+2. **Ordering and live version.** This plan sequences phase 3 before phase 4, and
+   `pji_dev` sits at v35 while the repository is at v36, so applying V36 and V37
+   there is still pending.
 
 
 ## Result
