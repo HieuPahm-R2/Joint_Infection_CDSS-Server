@@ -698,6 +698,43 @@ Everything else from the table — the DTO keys, `episodeId` → `admissionId`,
 `medicalRecordCode` → `recordNumber`, and the child-entity `episode` → `admission`
 fields — is unaffected by this constraint and can still be tokenised.
 
+### Phase 3b result (2026-10-16): rehearsed to green
+
+The approved table, implemented as a single-pass rename with the protections
+below, reaches `MAVEN_EXIT=0`, **140 tests / 0 failures / 0 errors / BUILD
+SUCCESS** against PostgreSQL 16 with all 36 migrations applied, including
+`contextLoads` under `ddl-auto: validate`. 162 files rewritten on the scratch
+copy. Nothing has been applied to the repository: the change is coordinated with
+`Frontend_Client` and `Rag_Agentic`, and the frontend tree is still dirty.
+
+What "curated" turned out to mean in practice — nine protections, each one
+discovered by a failing rehearsal rather than by inspection:
+
+1. `/episodes` — the phase 3a alias path segment.
+2. `{episodeId}`, `{cultureId}` — route template path variables, whose rename
+   would desynchronise `permissions.api_path` and silently revoke grants.
+3. Every double-quoted snake_case literal — schema object names, constraint
+   names and the `Rag_Agentic` wire keys.
+4. `CultureStatus` — a different concept, and the cause of one syntax error plus
+   196 cascading failures.
+5. `CultureEvidence`, `cultureEvidenceEvaluator`, `totalCultureCount` — the
+   rule-engine evidence concept, outside the approved list.
+6. Negative lookbehind on `Culture`/`culture` so they do not match inside
+   `SpecimenCulture`/`specimenCulture` (94 `SpecimenSpecimen…` names otherwise).
+7. The whole `PjiDiagnostic*` family excluded from the `cultureResult` tokens,
+   because there `cultureResult` is a category value, not the entity vocabulary.
+8. A single-pass replacement, which removed the ordering and
+   double-application defects outright.
+9. `"culture"` deliberately **not** protected: a full inventory showed the only
+   two occurrences are MapStruct targets that must follow the renamed field,
+   and the `input_type` value never appears as a Java literal.
+
+Honest limit of that green run: passing 140 tests proves the change compiles,
+wires up, and still maps to the unchanged schema. It does **not** prove any
+consumer still works — every tier 1 and tier 2 key is renamed on purpose, so
+`Frontend_Client` and `Rag_Agentic` are expected to break until they land in the
+same change.
+
 
 ## Result
 
