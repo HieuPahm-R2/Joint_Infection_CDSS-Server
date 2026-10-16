@@ -627,6 +627,10 @@ payload; it is renamed for vocabulary consistency only.
 
 **Open decisions inside this draft**
 
+Owner approved the whole table on 2026-10-16, including all four recommendations
+below. Execution waits only on `Frontend_Client` being clean, which the owner is
+doing themselves.
+
 | # | Question | Recommendation |
 | --- | --- | --- |
 | 1 | Rename `AntibioticSusceptibility.culture` → `specimenCulture`, which also renames the derived query and the nested key? | Yes; the rehearsal only failed because the query moved without the field |
@@ -655,6 +659,44 @@ payload keys are pinned by the assembler's literals, and the worker's own
 Sequencing: backend, frontend and worker land as one coordinated change, because
 every key in tiers 1 and 2 is a breaking rename on at least one consumer, and
 decision 2 is the one that fails silently if the worker is forgotten.
+
+### Phase 3b implementation constraint (found 2026-10-16, after the table was approved)
+
+Applying the approved table as **global tokens** still fails, and the failure is
+instructive. Five collision classes are now known, and the fifth is the decisive
+one:
+
+1. Schema, constraint and wire-key literals (fixed by masking every quoted
+   snake_case literal).
+2. Capitalised accessors (fixed by listing both cases).
+3. Wire values that merely share the English word (fixed by per-file exclusion
+   for `PjiDiagnosticEvaluationRequestDTO` and its adapter and test).
+4. Derived query renamed without the field it traverses (fixed by renaming the
+   field too, which is decision 1).
+5. **A bare English word cannot be a rename token at all.** Global
+   `culture` / `Culture` also rewrote `CultureStatus`, the microbiology result
+   enum, to `SpecimenCultureStatus` while the file kept its name. That is one
+   syntax error and 196 cascading `cannot find symbol` errors, because Lombok
+   stops generating accessors for the classes that reference it.
+
+The earlier single-pass redesign removed the ordering and double-application
+defects (a `Culture` token matching inside `SpecimenCulture` produced 94
+`SpecimenSpecimen…` names until a negative lookbehind was added). What it cannot
+remove is over-reach: the same English word is an entity association in one file
+and an unrelated domain concept in another.
+
+Therefore phase 3b must be applied **per file, not per token**, and the
+`culture` entry in the approved table is the one that needs that treatment. The
+places where `culture` means the `AntibioticSusceptibility` → `SpecimenCulture`
+association, and therefore the only places it is renamed, are:
+`AntibioticSusceptibility`, `AntibioticSusceptibilityRepository`,
+`AntibioticSusceptibilityServiceImpl`, `AntibioticSusceptibilityMapper`,
+`AdmissionAggregateServiceImpl`, `AdmissionSnapshotAssemblerServiceImpl`, and the
+tests that reference `getCulture` on that entity.
+
+Everything else from the table — the DTO keys, `episodeId` → `admissionId`,
+`medicalRecordCode` → `recordNumber`, and the child-entity `episode` → `admission`
+fields — is unaffected by this constraint and can still be tokenised.
 
 
 ## Result
