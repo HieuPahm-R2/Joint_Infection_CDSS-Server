@@ -569,6 +569,93 @@ for approval, together with the exception list (wire values, table and constrain
 names, category values) and the `Rag_Agentic` changes that must ship in the same
 change. Coding 3b without that table is what the rehearsal proved unsafe.
 
+### Phase 3b key mapping — draft for approval (2026-10-16)
+
+Derived from the actual field declarations of the 43 DTO and entity files that
+carry the old vocabulary, not from recall. Three tiers, because they carry very
+different risk.
+
+**Tier 1 — DTO-only fields (pure API surface, nothing else references them)**
+
+| Surface | Old key | New key |
+| --- | --- | --- |
+| `AdmissionFullResponseDTO` | `episode` | `admission` |
+| `AdmissionFullResponseDTO` | `clinicalRecord` | `clinicalAssessment` |
+| `AdmissionFullResponseDTO` | `labResults` | `labReports` |
+| `AdmissionFullResponseDTO` | `imageResults` | `imagingStudies` |
+| `AdmissionFullResponseDTO` | `cultureResults` | `specimenCultures` |
+| `AdmissionFullResponseDTO` | `sensitivityMap` | `susceptibilityMap` |
+| `AdmissionFullRequestDTO` | `episode` | `admission` |
+| `AdmissionFullRequestDTO` | `clinicalRecord` | `clinicalAssessment` |
+| `AdmissionFullRequestDTO` | `labResult` | `labReport` |
+| `AdmissionFullRequestDTO.CultureItem` | `sensitivities` | `susceptibilities` |
+| `AdmissionLockResponseDTO`, `ImagingStudyResponseDTO`, `AiRecommendationRunDTO`, `AntibioticCarePlanResponseDTO`, `ClinicalDecisionWorkspaceDTO`, `AiPredictionResponseDTO` | `episodeId` | `admissionId` |
+| `ClinicalAssessmentRequestDTO`, `LabReportRequestDTO`, `SpecimenCultureRequestDTO`, `ImagingStudyRequestDTO`, `SurgeryRequestDTO`, `CreateChatSessionRequestDTO`, `AiAnalysisRequestDTO` | `episodeId` | `admissionId` |
+| `AiAnalysisRequestDTO` | `clinicalRecords` | `clinicalAssessments` |
+| `AiAnalysisRequestDTO` | `labResults` | `labReports` |
+| `AiAnalysisRequestDTO` | `imageResults` | `imagingStudies` |
+| `AiAnalysisRequestDTO` | `cultureResults` | `specimenCultures` |
+| `AiAnalysisRequestDTO` | `sensitivityResults` | `antibioticSusceptibilities` |
+| `SendChatMessageRequestDTO` | `useEpisodeContext` | `useAdmissionContext` |
+
+Unchanged in this tier because they carry no old vocabulary: `medicalHistory`,
+`surgeries`, `images`, `cultures`, `patientId`, `snapshotId`, `runId`.
+
+**Tier 2 — entity fields whose names are also wire keys (rename drags JPQL and derived queries)**
+
+| Entity | Old | New | Drags |
+| --- | --- | --- | --- |
+| `Admission` | `medicalRecordCode` | `recordNumber` | the `BA`-code generator and its test |
+| `ClinicalAssessment`, `LabReport`, `ImagingStudy`, `SpecimenCulture`, `Surgery`, `ClinicalSnapshot`, `AiRecommendationRun`, `DoctorRecommendationReview`, `PendingLabTask`, `AiChatSession` | `episode` | `admission` | every `findByEpisodeId…`, `getEpisode()`, `.episode(...)`, JPQL `episode.id` |
+| `AntibioticSusceptibility` | `culture` | `specimenCulture` | `findByCultureId` → `findBySpecimenCultureId`; the nested `culture` key in `susceptibilityMap` values |
+| `AiChatMessage`, `AiChatSession` | `@JsonIgnoreProperties({… "episode" …})` | `"admission"` | serialization filter lists |
+
+`RecommendationFinalSelection.episode` is `@JsonIgnore`, so it never reaches a
+payload; it is renamed for vocabulary consistency only.
+
+**Tier 3 — must NOT change in phase 3b**
+
+| Item | Why it stays |
+| --- | --- |
+| `@Table`, `@JoinColumn`, `@Column`, `@UniqueConstraint` names (`pji_episodes`, `episode_care_team`, `episode_id`, `uq_pending_episode_field`, `medical_record_code`) | phase 4 owns schema names; changing them here is what broke `contextLoads` in the rehearsal |
+| `@JsonProperty("episode_id")` on `AiRecommendationGenerateRequestDTO` and `AiAntibioticCarePlanRequestDTO` | the `Rag_Agentic` HTTP contract; the wire key is fixed by an explicit annotation |
+| `@JsonProperty("episode_summary")` on `AiChatRequestDTO` | the `Rag_Agentic` chat contract |
+| `metadata.put("episode_id", …)` in `AdmissionSnapshotAssemblerServiceImpl` | the snapshot payload contract read by `Rag_Agentic`; versioning it is phase 7 |
+| Route segments `/episodes`, path variables `{episodeId}` and `{cultureId}` | the phase 3a alias and the `permissions.api_path` rows; retiring them is phase 3c |
+| `PjiDiagnosticEvaluationRequestDTO.cultureResult` and the `input_type` value `"culture"` | category values, not entity vocabulary; renaming them buys nothing and breaks the manual calculator and the pending-task rendering |
+| Uppercase IAM module labels (`"CLINICAL_RECORDS"`, `"LAB_RESULTS"`, …) | permission module names, unrelated to the wire contract |
+
+**Open decisions inside this draft**
+
+| # | Question | Recommendation |
+| --- | --- | --- |
+| 1 | Rename `AntibioticSusceptibility.culture` → `specimenCulture`, which also renames the derived query and the nested key? | Yes; the rehearsal only failed because the query moved without the field |
+| 2 | Rename `RabbitMQRecommendationMessage.episodeId` → `admissionId`, which requires the one-line change in `rabbitmq_worker.py:228` in the same commit? | Yes; otherwise the wire keeps `episodeId` forever and the worker stays silently coupled to the old name |
+| 3 | Rename `AntibioticSusceptibility.sensitivityCode` → `interpretation`? | No for now; it is an AST interpretation code, a separate vocabulary decision for phase 6 |
+| 4 | Rename response flag `useEpisodeContext` → `useAdmissionContext`? | Yes; it is a request flag with no other meaning |
+
+**The other two repositories in the same change**
+
+`Frontend_Client` — every renamed key is consumed there, and `episodeId` is not
+just a field: it is the identifier behind the episode edit lock, the SSE/AI
+stream scope, the deep links (`?patientId&episodeId&tab=…`), the diagnosis
+workflow session, and the `sessionStorage` AI-regimen tasks that also persist
+`medicalRecordCode` for display. Renaming it is the widest part of this change.
+The concrete surfaces are `types/backend.d.ts` (all `IEpisode*`, the six child
+interfaces and the four aggregate item types), the server-side property paths in
+`features/global-search/globalMedicalSearchUtils.ts` (`medicalRecordCode`,
+`patient.patientCode`, `inpatientDiagnosis`, `status`), and the seven places that
+fall back to a `BA #{id}` display string.
+
+`Rag_Agentic` — one required change (`rabbitmq_worker.py:228`, `body.get("episodeId")`),
+and nothing else: the HTTP keys are pinned by `@JsonProperty`, the snapshot
+payload keys are pinned by the assembler's literals, and the worker's own
+`session_id` naming is internal.
+
+Sequencing: backend, frontend and worker land as one coordinated change, because
+every key in tiers 1 and 2 is a breaking rename on at least one consumer, and
+decision 2 is the one that fails silently if the worker is forgotten.
+
 
 ## Result
 
