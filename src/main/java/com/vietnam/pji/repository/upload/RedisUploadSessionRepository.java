@@ -28,6 +28,19 @@ public class RedisUploadSessionRepository implements UploadSessionRepository {
     private static final String KEY_PREFIX = "upload-session:";
     private static final String FILE_PREFIX = "file:";
 
+    private static final DefaultRedisScript<Long> EXCHANGE_CODE_SCRIPT = script("""
+            if redis.call('EXISTS', KEYS[1]) == 0 then return 2 end
+            if redis.call('HGET', KEYS[1], 'exchangeCodeHash') ~= ARGV[1] then return 3 end
+            if redis.call('HGET', KEYS[1], 'status') ~= 'PENDING' then return 4 end
+            local now = redis.call('TIME')
+            local nowMillis = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+            local expiresAt = tonumber(redis.call('HGET', KEYS[1], 'exchangeCodeExpiresAt') or '0')
+            if expiresAt <= nowMillis or redis.call('PTTL', KEYS[1]) <= 0 then return 4 end
+            redis.call('HSET', KEYS[1], 'tokenHash', ARGV[2])
+            redis.call('HDEL', KEYS[1], 'exchangeCodeHash', 'exchangeCodeExpiresAt')
+            return 1
+            """);
+
     private static final DefaultRedisScript<Long> ADD_FILE_SCRIPT = script("""
             if redis.call('EXISTS', KEYS[1]) == 0 then return 2 end
             if redis.call('HGET', KEYS[1], 'tokenHash') ~= ARGV[1] then return 3 end
@@ -72,7 +85,11 @@ public class RedisUploadSessionRepository implements UploadSessionRepository {
         String key = key(session.sessionId());
         Map<Object, Object> values = new HashMap<>();
         values.put("sessionId", session.sessionId().toString());
-        values.put("tokenHash", session.tokenHash());
+        if (session.tokenHash() != null) values.put("tokenHash", session.tokenHash());
+        if (session.exchangeCodeHash() != null) {
+            values.put("exchangeCodeHash", session.exchangeCodeHash());
+            values.put("exchangeCodeExpiresAt", String.valueOf(session.exchangeCodeExpiresAt().toEpochMilli()));
+        }
         values.put("patientId", session.patientId().toString());
         values.put("episodeId", session.episodeId().toString());
         values.put("doctorId", session.doctorId().toString());
@@ -104,6 +121,9 @@ public class RedisUploadSessionRepository implements UploadSessionRepository {
         return Optional.of(UploadSession.builder()
                 .sessionId(sessionId)
                 .tokenHash(string(values, "tokenHash"))
+                .exchangeCodeHash(string(values, "exchangeCodeHash"))
+                .exchangeCodeExpiresAt(values.containsKey("exchangeCodeExpiresAt")
+                        ? Instant.ofEpochMilli(Long.parseLong(string(values, "exchangeCodeExpiresAt"))) : null)
                 .patientId(longValue(values, "patientId"))
                 .episodeId(longValue(values, "episodeId"))
                 .doctorId(longValue(values, "doctorId"))
@@ -115,6 +135,11 @@ public class RedisUploadSessionRepository implements UploadSessionRepository {
                 .processing("1".equals(string(values, "processing")))
                 .files(List.copyOf(files))
                 .build());
+    }
+
+    @Override
+    public MutationResult exchangeCode(UUID sessionId, String codeHash, String tokenHash) {
+        return result(redisTemplate.execute(EXCHANGE_CODE_SCRIPT, List.of(key(sessionId)), codeHash, tokenHash));
     }
 
     @Override

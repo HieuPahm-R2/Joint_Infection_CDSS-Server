@@ -18,6 +18,11 @@ public class InterceptorConfiguration implements WebMvcConfigurer {
                 "/", "/api/v1/auth/**", "/storage/**",
                 "/api/v1/files",
                 "/api/v1/upload-sessions/*/events",
+                // These endpoints authorize the session capability inside UploadSessionService.
+                "/api/v1/upload-sessions/*/exchange",
+                "/api/v1/upload-sessions/*/validate",
+                "/api/v1/upload-sessions/*/presigned-url",
+                "/api/v1/upload-sessions/*/complete",
         };
         registry.addInterceptor(getAuthorityInterceptor()).excludePathPatterns(whiteList);
     }

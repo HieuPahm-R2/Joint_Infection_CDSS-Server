@@ -23,6 +23,8 @@ public interface UploadSessionRepository {
 
     Optional<UploadSession> find(UUID sessionId);
 
+    MutationResult exchangeCode(UUID sessionId, String codeHash, String tokenHash);
+
     MutationResult addFile(UUID sessionId, String tokenHash, UploadSessionFile file, int maxFiles);
 
     MutationResult markUploaded(UUID sessionId, String tokenHash, Instant completedAt);

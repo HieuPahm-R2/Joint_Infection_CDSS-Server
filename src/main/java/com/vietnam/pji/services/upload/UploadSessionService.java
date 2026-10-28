@@ -29,6 +29,7 @@ import com.vietnam.pji.dto.response.PresignedUploadResponseDTO;
 import com.vietnam.pji.dto.response.UploadSessionCompleteResponseDTO;
 import com.vietnam.pji.dto.response.UploadSessionEventDTO;
 import com.vietnam.pji.dto.response.UploadSessionValidationResponseDTO;
+import com.vietnam.pji.dto.response.ExchangeUploadSessionResponseDTO;
 import com.vietnam.pji.exception.BusinessException;
 import com.vietnam.pji.exception.UploadSessionGoneException;
 import com.vietnam.pji.exception.UploadSessionUnauthorizedException;
@@ -53,6 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UploadSessionService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final Duration EXCHANGE_CODE_TTL = Duration.ofSeconds(60);
     private static final Set<String> HEIF_BRANDS = Set.of(
             "heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs", "mif1", "msf1");
 
@@ -77,11 +79,14 @@ public class UploadSessionService {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(properties.getTtl());
         UUID sessionId = UUID.randomUUID();
-        String rawToken = generateToken();
+        String exchangeCode = generateToken();
+        Instant exchangeCodeExpiresAt = now.plus(EXCHANGE_CODE_TTL);
+        if (exchangeCodeExpiresAt.isAfter(expiresAt)) exchangeCodeExpiresAt = expiresAt;
 
         UploadSession session = UploadSession.builder()
                 .sessionId(sessionId)
-                .tokenHash(hashToken(rawToken))
+                .exchangeCodeHash(hashToken(exchangeCode))
+                .exchangeCodeExpiresAt(exchangeCodeExpiresAt)
                 .patientId(patientId)
                 .episodeId(episodeId)
                 .doctorId(doctorId)
@@ -98,14 +103,15 @@ public class UploadSessionService {
                 : requestBaseUrl;
         String qrPayload = UriComponentsBuilder.fromUriString(stripTrailingSlash(baseUrl))
                 .pathSegment("m", "upload", sessionId.toString())
-                .queryParam("token", rawToken)
+                .replaceQuery(null)
+                .fragment("code=" + exchangeCode)
                 .build()
                 .encode()
                 .toUriString();
 
         log.info("UPLOAD_SESSION_CREATED sessionId={} patientId={} episodeId={} doctorId={} expiresAt={}",
                 sessionId, patientId, episodeId, doctorId, expiresAt);
-        return new CreateUploadSessionResponseDTO(sessionId, qrPayload, expiresAt);
+        return new CreateUploadSessionResponseDTO(sessionId, qrPayload, expiresAt, exchangeCodeExpiresAt);
     }
 
     public UploadSessionValidationResponseDTO validate(UUID sessionId, String rawToken) {
@@ -116,6 +122,22 @@ public class UploadSessionService {
                 properties.getMaxFiles(),
                 properties.getMaxFileSizeBytes(),
                 Set.copyOf(properties.getAllowedContentTypes()));
+    }
+
+    public ExchangeUploadSessionResponseDTO exchange(UUID sessionId, String code) {
+        UploadSession session = uploadSessionRepository.find(sessionId)
+                .orElseThrow(() -> new UploadSessionGoneException("Upload session expired"));
+        if (!tokenMatches(code, session.exchangeCodeHash())) {
+            throw new UploadSessionUnauthorizedException("Invalid or already used exchange code");
+        }
+        Instant now = Instant.now();
+        if (session.status() != UploadSessionStatus.PENDING || !now.isBefore(session.expiresAt())
+                || session.exchangeCodeExpiresAt() == null || !now.isBefore(session.exchangeCodeExpiresAt())) {
+            throw new UploadSessionGoneException("QR code expired; create a new QR code on the computer");
+        }
+        String uploadToken = generateToken();
+        handleCapabilityMutation(uploadSessionRepository.exchangeCode(sessionId, hashToken(code), hashToken(uploadToken)));
+        return new ExchangeUploadSessionResponseDTO(uploadToken, session.expiresAt());
     }
 
     public PresignedUploadResponseDTO presign(

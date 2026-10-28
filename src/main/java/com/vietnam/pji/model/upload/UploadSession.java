@@ -8,10 +8,12 @@ import com.vietnam.pji.constant.UploadSessionStatus;
 
 import lombok.Builder;
 
-@Builder
+@Builder(toBuilder = true)
 public record UploadSession(
         UUID sessionId,
         String tokenHash,
+        String exchangeCodeHash,
+        Instant exchangeCodeExpiresAt,
         Long patientId,
         Long episodeId,
         Long doctorId,

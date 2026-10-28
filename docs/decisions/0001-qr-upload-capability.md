@@ -21,6 +21,25 @@ to request short-lived presigned MinIO PUT URLs and atomically complete the
 session once. RabbitMQ triggers the existing OCR boundary; an authenticated
 doctor-scoped SSE stream returns the resulting job to the laptop.
 
+### Security amendment — 2026-10-28
+
+Owner approved replacing URL capability tokens with one-time exchange. QR URLs
+contain only the session ID and `#code=<random 256-bit code>`; the raw UploadToken
+is never part of a QR or HTTP URL. Codes expire in at most 60 seconds, bounded by
+the existing five-minute session. Redis atomically exchanges a code for the
+digest of an independently random UploadToken and deletes the code, preserving
+session TTL. Invalid guesses cannot consume a valid code; replay cannot rotate
+an issued token.
+
+Mobile posts the code in JSON, clears the fragment before sending, retains the
+returned UploadToken only in page memory, and authenticates subsequent mobile
+APIs through the Authorization Bearer header. No query/body token fallback,
+persistent browser storage, exchange retry, or reload recovery is supported.
+Capability responses are no-store; the mobile document suppresses referrers.
+The doctor-authenticated session creation and SSE routes retain JWT protection.
+Backend and frontend must ship together; users regenerate old or consumed QR
+links. Existing clinical scope, upload limits, OCR and expiry remain unchanged.
+
 Limit creation to ten sessions per five minutes per authenticated doctor using
 the existing distributed Bucket4j greedy-refill filter.
 

@@ -111,11 +111,86 @@ class UploadSessionServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.sessionId()).isNotNull();
         assertThat(response.qrPayload()).contains("m/upload/" + response.sessionId());
+        assertThat(java.net.URI.create(response.qrPayload()).getRawQuery() == null)
+                .as("QR credentials must never be sent in the HTTP URL query")
+                .isTrue();
+        assertThat(java.net.URI.create(response.qrPayload()).getFragment()).startsWith("code=");
+        assertThat(repository.current.get().tokenHash()).isNull();
+        assertThat(response.exchangeCodeExpiresAt()).isBeforeOrEqualTo(response.expiresAt());
+        assertThat(Duration.between(repository.current.get().createdAt(), response.exchangeCodeExpiresAt()))
+                .isEqualTo(Duration.ofSeconds(60));
         assertThat(repository.created).isTrue();
         assertThat(repository.current).isPresent();
         assertThat(repository.current.get().patientId()).isEqualTo(7L);
         assertThat(repository.current.get().episodeId()).isEqualTo(23L);
         assertThat(repository.current.get().doctorId()).isEqualTo(99L);
+    }
+
+    @Test
+    void exchangeCodeNeverOutlivesShorterSession() {
+        Patient patient = new Patient();
+        patient.setId(7L);
+        Admission episode = new Admission();
+        episode.setPatient(patient);
+        properties.setTtl(Duration.ofSeconds(20));
+        service = serviceWith(patientService(), episodeRepository(episode));
+        var response = service.create(7L, 23L, 99L, "https://example.test");
+        assertThat(response.exchangeCodeExpiresAt()).isEqualTo(response.expiresAt());
+    }
+
+    @Test
+    void codeCanOnlyBeExchangedOnceAndCannotUploadDirectly() {
+        Patient patient = new Patient();
+        patient.setId(7L);
+        Admission episode = new Admission();
+        episode.setPatient(patient);
+        service = serviceWith(patientService(), episodeRepository(episode));
+        var created = service.create(7L, 23L, 99L, "https://example.test");
+        String code = java.net.URI.create(created.qrPayload()).getFragment().substring(5);
+
+        assertThatThrownBy(() -> service.validate(created.sessionId(), code))
+                .isInstanceOf(UploadSessionUnauthorizedException.class);
+        assertThatThrownBy(() -> service.exchange(created.sessionId(), "wrong-code"))
+                .isInstanceOf(UploadSessionUnauthorizedException.class);
+        var exchanged = service.exchange(created.sessionId(), code);
+
+        assertThat(exchanged.uploadToken()).hasSize(43).isNotEqualTo(code);
+        assertThat(exchanged.expiresAt()).isEqualTo(created.expiresAt());
+        assertThat(repository.current.get().tokenHash()).isEqualTo(hash(exchanged.uploadToken()));
+        assertThat(repository.current.get().exchangeCodeHash()).isNull();
+        assertThat(service.validate(created.sessionId(), exchanged.uploadToken()).sessionId()).isEqualTo(created.sessionId());
+        assertThatThrownBy(() -> service.exchange(created.sessionId(), code))
+                .isInstanceOf(UploadSessionUnauthorizedException.class);
+        assertThatThrownBy(() -> service.validate(created.sessionId(), code))
+                .isInstanceOf(UploadSessionUnauthorizedException.class);
+        assertThatThrownBy(() -> service.exchange(UUID.randomUUID(), code))
+                .isInstanceOf(UploadSessionGoneException.class);
+    }
+
+    @Test
+    void exchangeRejectsExpiredCodeAndExpiredOrConsumedSession() {
+        UploadSession pending = session(UploadSessionStatus.PENDING).toBuilder()
+                .tokenHash(null).exchangeCodeHash(hash(TOKEN))
+                .exchangeCodeExpiresAt(Instant.now().minusSeconds(1)).build();
+        repository.current = Optional.of(pending);
+        assertThatThrownBy(() -> service.exchange(SESSION_ID, TOKEN)).isInstanceOf(UploadSessionGoneException.class);
+        repository.current = Optional.of(pending.toBuilder()
+                .exchangeCodeExpiresAt(Instant.now().plusSeconds(30)).expiresAt(Instant.now().minusSeconds(1)).build());
+        assertThatThrownBy(() -> service.exchange(SESSION_ID, TOKEN)).isInstanceOf(UploadSessionGoneException.class);
+        repository.current = Optional.of(pending.toBuilder()
+                .exchangeCodeExpiresAt(Instant.now().plusSeconds(30)).status(UploadSessionStatus.CONSUMED).build());
+        assertThatThrownBy(() -> service.exchange(SESSION_ID, TOKEN)).isInstanceOf(UploadSessionGoneException.class);
+        repository.current = Optional.empty();
+        assertThatThrownBy(() -> service.exchange(SESSION_ID, TOKEN)).isInstanceOf(UploadSessionGoneException.class);
+    }
+
+    @Test
+    void exchangeHonorsAtomicRepositoryRejectionAfterPrecheck() {
+        repository.current = Optional.of(session(UploadSessionStatus.PENDING).toBuilder()
+                .exchangeCodeHash(hash(TOKEN)).exchangeCodeExpiresAt(Instant.now().plusSeconds(30)).build());
+        repository.exchangeResult = UploadSessionRepository.MutationResult.INVALID_TOKEN;
+        assertThatThrownBy(() -> service.exchange(SESSION_ID, TOKEN))
+                .isInstanceOf(UploadSessionUnauthorizedException.class);
     }
 
     @Test
@@ -256,6 +331,7 @@ class UploadSessionServiceTest {
         private Optional<UploadSession> current = Optional.empty();
         private boolean created;
         private UUID removedFileId;
+        private MutationResult exchangeResult = MutationResult.SUCCESS;
 
         @Override
         public void create(UploadSession session, Duration ttl) {
@@ -266,6 +342,17 @@ class UploadSessionServiceTest {
         @Override
         public Optional<UploadSession> find(UUID sessionId) {
             return current.filter(session -> session.sessionId().equals(sessionId));
+        }
+
+        @Override
+        public synchronized MutationResult exchangeCode(UUID sessionId, String codeHash, String tokenHash) {
+            if (exchangeResult != MutationResult.SUCCESS) return exchangeResult;
+            var session = find(sessionId).orElse(null);
+            if (session == null) return MutationResult.NOT_FOUND;
+            if (!codeHash.equals(session.exchangeCodeHash())) return MutationResult.INVALID_TOKEN;
+            current = Optional.of(session.toBuilder().exchangeCodeHash(null).exchangeCodeExpiresAt(null)
+                    .tokenHash(tokenHash).build());
+            return MutationResult.SUCCESS;
         }
 
         @Override
