@@ -20,16 +20,9 @@ import lombok.Setter;
 
 /**
  * Explicit, revocable membership of a user on an episode's care team.
- *
- * <p>
- * This is the record-relationship layer of
- * {@code docs/decisions/0008-general-authorization-policy.md}: it is what lets a
- * pharmacist reach an episode they did not create, without the blanket
- * role-wide exemption it replaces, and what makes "who could see this record"
- * answerable and auditable.
- *
- * <p>
- * Revoking access sets {@link #active} to {@code false} rather than deleting the
+ * 
+ * Revoking access sets {@link #active} to {@code false} rather than deleting
+ * the
  * row, so the history of responsibility survives.
  */
 @Getter

@@ -43,27 +43,23 @@ import lombok.extern.slf4j.Slf4j;
  * Finally the user-permission Redis cache is flushed so any in-flight
  * session picks the new grants up immediately instead of waiting out the
  * 10-minute TTL.
- *
- * Runs after {@link DatabaseInitializer} via {@code @Order} so the initial
- * ADMIN role exists by the time we try to add to it.
+ * 
  */
 @Component
 // Run BEFORE DatabaseInitializer. Fresh DB path: PermissionSyncer inserts every
-// declared endpoint with no ADMIN role yet (logs and skips the grant step
-// Existing DB path: PermissionSyncer diffs + grants; DatabaseInitializer skips.
+// declared endpoint with no ADMIN role yet
 @Order(1)
 @RequiredArgsConstructor
 @Slf4j
 public class PermissionSyncer implements CommandLineRunner {
 
     private static final String ADMIN_ROLE = "ADMIN";
-
+    // chứa thông tin ánh xạ URL và controller methods của SpringMVC
     private final RequestMappingHandlerMapping requestMappingHandlerMapping;
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
     private final RedisService redisService;
-    // TransactionTemplate is used instead of @Transactional so transactional
-    // boundaries are explicit and proxy-agnostic. CommandLineRunner methods
+    // CommandLineRunner methods
     // can fail to pick up @Transactional cleanly depending on bean-init order
     // and DevTools restart timing; TransactionTemplate avoids that footgun.
     private final TransactionTemplate transactionTemplate;
@@ -116,7 +112,7 @@ public class PermissionSyncer implements CommandLineRunner {
 
         // 5. Reconcile ADMIN grants. We always do this even when nothing was
         // inserted — recovers from any past run where insert succeeded but
-        // the grant step crashed (e.g. LazyInitializationException), leaving
+        // the grant step crashed, leaving
         // permissions in the table but unlinked from any role.
         int granted = reconcileAdminGrants(declared, existingByKey, savedNew);
 
@@ -140,7 +136,7 @@ public class PermissionSyncer implements CommandLineRunner {
 
     /**
      * Ensure ADMIN holds a grant for every declared endpoint that exists in the
-     * permissions table. Returns the number of grants added.
+     * permissions table.
      */
     private int reconcileAdminGrants(Set<EndpointKey> declared,
             Map<EndpointKey, Permission> existingByKey,
@@ -171,7 +167,9 @@ public class PermissionSyncer implements CommandLineRunner {
             alreadyGranted.add(p.getId());
         }
 
-        // Anything declared but not yet granted to ADMIN gets added.
+        // Filter missing permission
+        // neu permission co trong db, nhung id chưa nằm trong alreadyGranted => sẽ gom
+        // vào toGrant
         List<Permission> toGrant = new ArrayList<>();
         for (EndpointKey key : declared) {
             Permission p = existingByKey.get(key);
@@ -194,6 +192,8 @@ public class PermissionSyncer implements CommandLineRunner {
 
     private Set<EndpointKey> collectDeclaredEndpoints() {
         Set<EndpointKey> keys = new HashSet<>();
+        // RequestMappingInfo:url pattern, http method,header, params,...
+        // HandlerMethod: method cụ thể trong @Controller
         Map<RequestMappingInfo, HandlerMethod> handlers = requestMappingHandlerMapping.getHandlerMethods();
 
         for (Map.Entry<RequestMappingInfo, HandlerMethod> entry : handlers.entrySet()) {
@@ -257,7 +257,7 @@ public class PermissionSyncer implements CommandLineRunner {
     }
 
     /**
-     * Best-effort module label from the URL pattern. Falls back to {@code MISC}
+     * Falls back to {@code MISC}
      * when the URL doesn't look like {@code /api/v1/<segment>/...}. Admins can
      * rename modules in the UI after the fact — the sync only cares about
      * {@code (method, path)} for diffing.

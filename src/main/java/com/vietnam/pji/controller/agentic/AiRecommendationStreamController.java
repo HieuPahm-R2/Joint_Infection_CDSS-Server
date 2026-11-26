@@ -23,8 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Server-Sent Events relay for AI recommendation "thought logs" and "thinking stream".
- *
+ * Sse relay for AI recommendation "thought logs" and "thinking stream".
  * Clients open a stream on a runId and receive both macro progress events
  * and token-by-token reasoning (from Redis Streams).
  */
@@ -54,7 +53,7 @@ public class AiRecommendationStreamController {
             @PathVariable Long runId,
             @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
             HttpServletResponse response) {
-            
+
         recommendationAccessService.assertCanAccessRun(runId);
         // Stop reverse proxies (nginx / Cloudflare) buffering the event stream
         response.setHeader("X-Accel-Buffering", "no");
@@ -95,20 +94,22 @@ public class AiRecommendationStreamController {
         }
 
         log.info("SSE client connected for runId={}", runId);
-        
+
         // Mark relay as active BEFORE dispatching, so closeRun() knows to defer.
         relayActiveRuns.add(runId);
         thinkingStreamRelay.relay(runId, lastEventId, emitter);
-        
+
         return emitter;
     }
 
     /**
-     * Push a legacy progress message to the SSE stream. (Still called by RabbitMQConsumer)
+     * Push a legacy progress message to the SSE stream. (Still called by
+     * RabbitMQConsumer)
      */
     public void pushProgress(Long runId, String message, String stage) {
         SseEmitter emitter = emitters.get(runId);
-        if (emitter == null) return;
+        if (emitter == null)
+            return;
 
         try {
             emitter.send(SseEmitter.event()
@@ -119,7 +120,8 @@ public class AiRecommendationStreamController {
             emitters.remove(runId, emitter);
             try {
                 emitter.complete();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -134,7 +136,8 @@ public class AiRecommendationStreamController {
      * events to the client.
      */
     public void closeRun(Long runId, String finalMessage) {
-        if (runId == null) return;
+        if (runId == null)
+            return;
 
         if (relayActiveRuns.contains(runId)) {
             // Relay is running — it owns the emitter lifecycle.
@@ -146,7 +149,8 @@ public class AiRecommendationStreamController {
 
         // No relay running — close the emitter directly (legacy path).
         SseEmitter emitter = emitters.remove(runId);
-        if (emitter == null) return;
+        if (emitter == null)
+            return;
 
         try {
             emitter.send(SseEmitter.event()
@@ -157,7 +161,8 @@ public class AiRecommendationStreamController {
             log.debug("SSE close failed for runId={}: {}", runId, e.getMessage());
             try {
                 emitter.completeWithError(e);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 }

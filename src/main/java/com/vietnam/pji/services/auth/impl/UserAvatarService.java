@@ -27,7 +27,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class UserAvatarService {
 
-    static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024L * 1024L;
+    public static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024L * 1024L;
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp");
 
@@ -100,7 +100,8 @@ public class UserAvatarService {
         }
 
         String contentType = avatar.getContentType() == null
-                ? "" : avatar.getContentType().toLowerCase(Locale.ROOT);
+                ? ""
+                : avatar.getContentType().toLowerCase(Locale.ROOT);
         if (!ALLOWED_CONTENT_TYPES.contains(contentType)) {
             throw new BusinessException("Ảnh đại diện phải có định dạng JPEG, PNG hoặc WEBP.");
         }

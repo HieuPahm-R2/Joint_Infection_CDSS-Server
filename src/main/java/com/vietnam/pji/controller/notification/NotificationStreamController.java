@@ -32,7 +32,7 @@ public class NotificationStreamController {
 
     private static final long SSE_TIMEOUT_MS = 30L * 60L * 1000L; // 30 minutes
 
-    private final Map<Long, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
+    private final Map<Long, List<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();// userId 10 → [emitter tab A, emitter tab B]
 
     @GetMapping(value = "/notifications/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Stream notifications for the authenticated user via SSE")
@@ -43,10 +43,11 @@ public class NotificationStreamController {
         }
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        //nếu user chưa có ds thì tạo; nếu đã có thì lấy ds hiện tại
         List<SseEmitter> list = emittersByUser.computeIfAbsent(userId,
                 k -> new CopyOnWriteArrayList<>());
         list.add(emitter);
-
+        //xóa emitter. Nếu user ko còn emitter nào thì xóa entry của user trong map.
         Runnable cleanup = () -> {
             List<SseEmitter> current = emittersByUser.get(userId);
             if (current != null) {
@@ -56,8 +57,9 @@ public class NotificationStreamController {
                 }
             }
         };
-
+        // tình huống 1 -> kết nối oke -> dọn dẹp
         emitter.onCompletion(cleanup);
+        // tình huống 2 -> hết timeout -> dọn dẹp
         emitter.onTimeout(() -> {
             cleanup.run();
             emitter.complete();
@@ -72,9 +74,7 @@ public class NotificationStreamController {
         }
 
         log.debug("Notification SSE client connected for userId={}", userId);
-        // X-Accel-Buffering: no tells reverse proxies (nginx, and respected by
-        // Cloudflare) not to buffer the stream, so events reach the browser as
-        // they happen instead of arriving in one lump when the connection ends.
+        // yêu cầu proxy ko buffer, ko cache khi chưa xác thực lại
         return ResponseEntity.ok()
                 .header("X-Accel-Buffering", "no")
                 .header("Cache-Control", "no-cache")
@@ -82,7 +82,7 @@ public class NotificationStreamController {
     }
 
     /**
-     * Push a notification to every active emitter for the given user. No-op if
+     * Push a noti to every active emitter for the given user. No-op if
      * the user has no open connections (it's still persisted to the DB by the
      * service caller).
      */
